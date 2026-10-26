@@ -8,6 +8,7 @@ const TagScanner = preload("res://addons/_lib/editor_parser/src/tag/scanner.gd")
 const SOURCE = "res://addons/sweet_ui/_export_ignore/generate/sweets_source.gd"
 const TARGET = "res://addons/sweet_ui/src/sweet_ui.gd"
 const CLASSES_TARGET = "res://addons/sweet_ui/src/gen/sweets_generated.gd"
+const SWEETS_TARGET = "res://addons/sweet_ui/src/sweets.gd"
 const START = "### GENERATED START"
 const END = "### GENERATED END"
 
@@ -21,17 +22,17 @@ static func generate() -> Error:
 	return result.error
 
 
-static func _generate_file(target_path: String, source_path: String = SOURCE, classes_path: String = CLASSES_TARGET) -> Dictionary:
+static func _generate_file(target_path: String, source_path: String = SOURCE, classes_path: String = CLASSES_TARGET, sweets_path: String = SWEETS_TARGET) -> Dictionary:
 	var file = FileAccess.open(target_path, FileAccess.READ)
 	if file == null:
 		return _failure("Cannot read Sweets target: " + target_path, FileAccess.get_open_error())
 	var original = file.get_as_text()
 	file.close()
-	var result = build_candidate(original, source_path, target_path, classes_path)
+	var result = build_candidate(original, source_path, target_path, classes_path, sweets_path)
 	if result.error != OK:
 		return result
 	_clear_validation(result.validation)
-	return _write_outputs({result.classes_path: result.classes_source, target_path: result.source})
+	return _write_outputs({classes_path: result.classes_source, sweets_path: result.sweets_source, target_path: result.source})
 
 
 static func _write_outputs(outputs: Dictionary) -> Dictionary:
@@ -85,7 +86,7 @@ static func _clear_staging(paths: Array[String]) -> void:
 
 
 ## Clear the returned temporary validation types after their instances are gone.
-static func build_candidate(original: String, source_path: String = SOURCE, target_path: String = TARGET, classes_path: String = CLASSES_TARGET) -> Dictionary:
+static func build_candidate(original: String, source_path: String = SOURCE, target_path: String = TARGET, classes_path: String = CLASSES_TARGET, sweets_path: String = SWEETS_TARGET) -> Dictionary:
 	var marker = RegEx.new()
 	marker.compile("(?m)^### GENERATED (START|END)\\r?$")
 	var matches = marker.search_all(original)
@@ -94,16 +95,11 @@ static func build_candidate(original: String, source_path: String = SOURCE, targ
 	var generated = _build_region(source_path)
 	if generated.error != OK:
 		return generated
-	var classes = GDScript.new()
-	classes.set_path_cache(_validation_path(classes_path))
-	classes.source_code = generated.classes_source
-	var error = classes.reload()
-	_clear_validation(classes)
-	if error != OK:
-		return _failure("Generated wrapper classes did not compile: " + error_string(error), error)
 	var newline = "\r\n" if original.contains("\r\n") else "\n"
 	var preload_line = "const _Generated = preload(%s)\n" % var_to_str(classes_path)
-	var region: String = (preload_line + generated.source).replace("\n", newline)
+	var sweets_preload = "const Sweets = preload(%s)\n" % var_to_str(sweets_path)
+	var region: String = (preload_line + sweets_preload + generated.source).replace("\n", newline)
+	var sweets_source: String = "extends RefCounted\n\n" + preload_line + generated.static_source
 	var start_end: int = matches[0].get_start() + START.length()
 	var prefix = original.left(start_end) + newline
 	var suffix = original.substr(matches[1].get_start())
@@ -113,29 +109,37 @@ static func build_candidate(original: String, source_path: String = SOURCE, targ
 	var validation_name = "SweetsValidation" + validation_path.get_file().get_basename().trim_prefix("__sweets_validate_")
 	var wrapper_source: String = generated.classes_source.trim_prefix("extends RefCounted\n")
 	var factory_source: String = generated.source
+	var static_source: String = generated.static_source
 	if generated.re_export:
-		# Local wrapper classes already expose the names exported by the real preload aliases.
+		# In-memory aliases to nested classes can resolve to null; use the local types directly.
 		var aliases = RegEx.new()
 		aliases.compile("(?m)^const Sw[A-Za-z_0-9]* = _Generated\\.Sw[A-Za-z_0-9]*\n")
 		factory_source = aliases.sub(factory_source, "", true)
+		static_source = aliases.sub(static_source, "", true)
 	else:
-		var nested_classes = "class _Generated extends RefCounted:\n"
-		for line in wrapper_source.split("\n"):
-			nested_classes += ("\t" + line if not line.is_empty() else "") + "\n"
-		wrapper_source = nested_classes
-	var validation_source = prefix + wrapper_source + "\n" + factory_source + suffix
+		wrapper_source = _nested_class("_Generated", wrapper_source)
+	var validation_source = prefix + wrapper_source + "\n" + _nested_class("Sweets", static_source) + "\n" + factory_source + suffix
+	if generated.re_export:
+		validation_source = _flatten_wrapper_references(validation_source)
 	validation_source = _rename_identifier(validation_source, "SweetUI", validation_name)
 	if not validation_source.contains("class_name " + validation_name):
 		validation_source = "class_name " + validation_name + "\n" + validation_source
 	var validation = GDScript.new()
 	validation.set_path_cache(validation_path)
 	validation.source_code = validation_source
-	error = validation.reload()
+	var error = validation.reload()
 	if error != OK:
 		_clear_validation(validation)
 		return _failure("Generated Sweets did not compile: " + error_string(error), error)
 	return {"error": OK, "source": candidate, "classes_source": generated.classes_source,
-		"classes_path": classes_path, "validation": validation}
+		"classes_path": classes_path, "sweets_source": sweets_source, "sweets_path": sweets_path, "validation": validation}
+
+
+static func _nested_class(name: String, source: String) -> String:
+	var nested = "class %s extends RefCounted:\n" % name
+	for line in source.split("\n"):
+		nested += ("\t" + line if not line.is_empty() else "") + "\n"
+	return nested
 
 
 ## Release the temporary owner/wrapper type cycle after its instances are gone.
@@ -161,6 +165,15 @@ static func _rename_identifier(source: String, identifier: String, replacement: 
 		var token = tokens[i]
 		if token.text == identifier:
 			source = source.left(token.offset) + replacement + source.substr(token.end)
+	return source
+
+
+## Handwritten helpers may use _Generated even when factories use re-exported names.
+static func _flatten_wrapper_references(source: String) -> String:
+	var tokens = Lexer._tokens(source)
+	for i in range(tokens.size() - 3, -1, -1):
+		if tokens[i].text == "_Generated" and tokens[i + 1].text == "." and tokens[i + 2].text.begins_with("Sw"):
+			source = source.left(tokens[i].offset) + source.substr(tokens[i + 2].offset)
 	return source
 
 
@@ -211,6 +224,7 @@ static func _emit_prototypes(parser, overrides: Dictionary, re_export: bool, lin
 			return _failure("No Sweets prototype for override: " + str(name))
 	names.sort()
 	var factories: Array[String] = []
+	var static_factories: Array[String] = []
 	var wrappers: Array[String] = []
 	var aliases: Array[String] = []
 	var used_factories: Array[String] = []
@@ -225,9 +239,10 @@ static func _emit_prototypes(parser, overrides: Dictionary, re_export: bool, lin
 		var factory = str(entry.get("factory", inferred_type.to_snake_case()))
 		if not ClassDB.is_parent_class(native_type, "Control") or not factory.is_valid_ascii_identifier():
 			return _failure("Sweets entries need a Control type and factory name: " + name)
-		if factory in used_factories:
-			return _failure("Duplicate Sweets factory: " + factory)
-		used_factories.append(factory)
+		for method_name in [factory, factory + "_from"]:
+			if method_name in used_factories:
+				return _failure("Duplicate Sweets factory: " + method_name)
+			used_factories.append(method_name)
 		var collected = _collect_methods(parser, name)
 		if collected.error != OK:
 			return collected
@@ -243,8 +258,8 @@ static func _emit_prototypes(parser, overrides: Dictionary, re_export: bool, lin
 			if not methods.has(setter_name):
 				method_names.append(setter_name)
 		method_names.sort()
-		var output = Templates.CLASS_BODY % [name, native_type, native_type]
-		output += Templates.CLASS_INIT % [native_type]
+		var output = Templates.CLASS_BODY % [name, native_type, native_type, native_type]
+		output += Templates.CLASS_INIT % [native_type, native_type, name, name]
 		for method_name in method_names:
 			if methods.has(method_name):
 				var emitted = _emit_method(methods[method_name], lines, collected.ancestors, name)
@@ -258,15 +273,18 @@ static func _emit_prototypes(parser, overrides: Dictionary, re_export: bool, lin
 			aliases.append("const %s = _Generated.%s" % [name, name])
 		var wrapper_type = name if re_export else "_Generated." + name
 		factories.append(Templates.API_FUNC % [factory, wrapper_type, wrapper_type, native_type])
+		factories.append(Templates.API_FROM_FUNC % [factory, native_type, wrapper_type, wrapper_type])
+		static_factories.append(Templates.STATIC_API_FUNC % [factory, native_type, wrapper_type, native_type, wrapper_type])
 	var region = "# Generated by SweetsGen from _export_ignore/generate/sweets_source.gd.\n"
 	if not aliases.is_empty():
 		region += "\n".join(aliases) + "\n"
 	region += "\n\n"
+	var static_region = region + "\n\n".join(static_factories) + "\n"
 	region += "\n\n".join(factories) + "\n"
 	var classes_source = "extends RefCounted\n\n# Generated by SweetsGen. Do not edit.\n\n"
 	classes_source += Templates.GEN_DEPS
 	classes_source += "\n\n".join(wrappers)
-	return {"error": OK, "source": region, "classes_source": classes_source, "re_export": re_export}
+	return {"error": OK, "source": region, "static_source": static_region, "classes_source": classes_source, "re_export": re_export}
 
 
 static func _collect_setter_tags(lines: PackedStringArray) -> Dictionary:
@@ -297,7 +315,7 @@ static func _emit_setters(native_type: String, wrapper: String, ancestors: Array
 		for member_name: String in tags.get(ancestor, []):
 			if methods.has(member_name):
 				continue
-			if member_name in ["_init", "node", "ui"]:
+			if member_name in ["_init", "node", "ui", "with_parent"]:
 				return _failure("Set member conflicts with generated method: " + member_name)
 			if not properties.has(member_name):
 				if Parser.BuiltInChecker.class_has_signal(native_type, member_name):
@@ -339,8 +357,8 @@ static func _collect_methods(parser, name: String) -> Dictionary:
 			if member_name != "_control" and not prototype.functions.has(member_name):
 				return _failure("Only _control state and operation methods are supported: " + name)
 		for method_name in prototype.functions:
-			if method_name in ["_init", "node", "ui"]:
-				return _failure("Constructors, node(), and ui() are generated: " + name)
+			if method_name in ["_init", "node", "ui", "with_parent"]:
+				return _failure("Constructors, with_parent(), node(), and ui() are generated: " + name)
 			methods[method_name] = prototype.functions[method_name]
 	return {"error": OK, "methods": methods, "ancestors": ancestors}
 
@@ -380,7 +398,19 @@ class Templates:
 "func %s(parent: Node = null) -> %s:
 	if not is_instance_valid(parent):
 		parent = _node
-	return %s.new(%s.new(), parent, self)
+	return %s.with_parent(%s.new(), parent, self)
+"
+	const API_FROM_FUNC = \
+"func %s_from(node: %s, parent: Node = null) -> %s:
+	if not is_instance_valid(parent):
+		parent = _node
+	return %s.with_parent(node, parent, self)
+"
+	const STATIC_API_FUNC = \
+"static func %s(node: %s = null) -> %s:
+	if node == null:
+		node = %s.new()
+	return %s.new(node)
 "
 	# generated file
 	const GEN_DEPS = \
@@ -395,16 +425,22 @@ class Templates:
 	func node() -> %s:
 		return _control
 	
+	func c() -> %s:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
 "
 
 	const CLASS_INIT = \
-"	func _init(control: %s, parent: Node, ui:SweetUI) -> void:
+"	func _init(control: %s) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: %s, parent: Node, ui: SweetUI) -> %s:
+		var wrapper = %s.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 "

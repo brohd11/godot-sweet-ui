@@ -10,14 +10,20 @@ class SwButton extends RefCounted:
 	func node() -> Button:
 		return _control
 	
+	func c() -> Button:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: Button, parent: Node, ui:SweetUI) -> void:
+	func _init(control: Button) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: Button, parent: Node, ui: SweetUI) -> SwButton:
+		var wrapper = SwButton.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -136,14 +142,20 @@ class SwCenterContainer extends RefCounted:
 	func node() -> CenterContainer:
 		return _control
 	
+	func c() -> CenterContainer:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: CenterContainer, parent: Node, ui:SweetUI) -> void:
+	func _init(control: CenterContainer) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: CenterContainer, parent: Node, ui: SweetUI) -> SwCenterContainer:
+		var wrapper = SwCenterContainer.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -237,14 +249,20 @@ class SwColorRect extends RefCounted:
 	func node() -> ColorRect:
 		return _control
 	
+	func c() -> ColorRect:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: ColorRect, parent: Node, ui:SweetUI) -> void:
+	func _init(control: ColorRect) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: ColorRect, parent: Node, ui: SweetUI) -> SwColorRect:
+		var wrapper = SwColorRect.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -338,14 +356,20 @@ class SwControl extends RefCounted:
 	func node() -> Control:
 		return _control
 	
+	func c() -> Control:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: Control, parent: Node, ui:SweetUI) -> void:
+	func _init(control: Control) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: Control, parent: Node, ui: SweetUI) -> SwControl:
+		var wrapper = SwControl.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -434,14 +458,20 @@ class SwGridContainer extends RefCounted:
 	func node() -> GridContainer:
 		return _control
 	
+	func c() -> GridContainer:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: GridContainer, parent: Node, ui:SweetUI) -> void:
+	func _init(control: GridContainer) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: GridContainer, parent: Node, ui: SweetUI) -> SwGridContainer:
+		var wrapper = SwGridContainer.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -535,14 +565,20 @@ class SwHBoxContainer extends RefCounted:
 	func node() -> HBoxContainer:
 		return _control
 	
+	func c() -> HBoxContainer:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: HBoxContainer, parent: Node, ui:SweetUI) -> void:
+	func _init(control: HBoxContainer) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: HBoxContainer, parent: Node, ui: SweetUI) -> SwHBoxContainer:
+		var wrapper = SwHBoxContainer.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -636,14 +672,20 @@ class SwHSplitContainer extends RefCounted:
 	func node() -> HSplitContainer:
 		return _control
 	
+	func c() -> HSplitContainer:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: HSplitContainer, parent: Node, ui:SweetUI) -> void:
+	func _init(control: HSplitContainer) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: HSplitContainer, parent: Node, ui: SweetUI) -> SwHSplitContainer:
+		var wrapper = SwHSplitContainer.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -742,14 +784,20 @@ class SwLabel extends RefCounted:
 	func node() -> Label:
 		return _control
 	
+	func c() -> Label:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: Label, parent: Node, ui:SweetUI) -> void:
+	func _init(control: Label) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: Label, parent: Node, ui: SweetUI) -> SwLabel:
+		var wrapper = SwLabel.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -863,14 +911,20 @@ class SwLineEdit extends RefCounted:
 	func node() -> LineEdit:
 		return _control
 	
+	func c() -> LineEdit:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: LineEdit, parent: Node, ui:SweetUI) -> void:
+	func _init(control: LineEdit) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: LineEdit, parent: Node, ui: SweetUI) -> SwLineEdit:
+		var wrapper = SwLineEdit.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -979,14 +1033,20 @@ class SwMarginContainer extends RefCounted:
 	func node() -> MarginContainer:
 		return _control
 	
+	func c() -> MarginContainer:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: MarginContainer, parent: Node, ui:SweetUI) -> void:
+	func _init(control: MarginContainer) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: MarginContainer, parent: Node, ui: SweetUI) -> SwMarginContainer:
+		var wrapper = SwMarginContainer.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -1087,14 +1147,20 @@ class SwPanelContainer extends RefCounted:
 	func node() -> PanelContainer:
 		return _control
 	
+	func c() -> PanelContainer:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: PanelContainer, parent: Node, ui:SweetUI) -> void:
+	func _init(control: PanelContainer) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: PanelContainer, parent: Node, ui: SweetUI) -> SwPanelContainer:
+		var wrapper = SwPanelContainer.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -1183,14 +1249,20 @@ class SwProgressBar extends RefCounted:
 	func node() -> ProgressBar:
 		return _control
 	
+	func c() -> ProgressBar:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: ProgressBar, parent: Node, ui:SweetUI) -> void:
+	func _init(control: ProgressBar) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: ProgressBar, parent: Node, ui: SweetUI) -> SwProgressBar:
+		var wrapper = SwProgressBar.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -1299,14 +1371,20 @@ class SwScrollContainer extends RefCounted:
 	func node() -> ScrollContainer:
 		return _control
 	
+	func c() -> ScrollContainer:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: ScrollContainer, parent: Node, ui:SweetUI) -> void:
+	func _init(control: ScrollContainer) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: ScrollContainer, parent: Node, ui: SweetUI) -> SwScrollContainer:
+		var wrapper = SwScrollContainer.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -1420,14 +1498,20 @@ class SwTextEdit extends RefCounted:
 	func node() -> TextEdit:
 		return _control
 	
+	func c() -> TextEdit:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: TextEdit, parent: Node, ui:SweetUI) -> void:
+	func _init(control: TextEdit) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: TextEdit, parent: Node, ui: SweetUI) -> SwTextEdit:
+		var wrapper = SwTextEdit.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -1536,14 +1620,20 @@ class SwTextureRect extends RefCounted:
 	func node() -> TextureRect:
 		return _control
 	
+	func c() -> TextureRect:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: TextureRect, parent: Node, ui:SweetUI) -> void:
+	func _init(control: TextureRect) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: TextureRect, parent: Node, ui: SweetUI) -> SwTextureRect:
+		var wrapper = SwTextureRect.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -1647,14 +1737,20 @@ class SwVBoxContainer extends RefCounted:
 	func node() -> VBoxContainer:
 		return _control
 	
+	func c() -> VBoxContainer:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: VBoxContainer, parent: Node, ui:SweetUI) -> void:
+	func _init(control: VBoxContainer) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: VBoxContainer, parent: Node, ui: SweetUI) -> SwVBoxContainer:
+		var wrapper = SwVBoxContainer.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 
@@ -1748,14 +1844,20 @@ class SwVSplitContainer extends RefCounted:
 	func node() -> VSplitContainer:
 		return _control
 	
+	func c() -> VSplitContainer:
+		return _control
+	
 	func ui() -> SweetUI:
 		return _ui
 	
-	func _init(control: VSplitContainer, parent: Node, ui:SweetUI) -> void:
+	func _init(control: VSplitContainer) -> void:
 		_control = control
-		# _control.name = UName.incremental_name_check_in_nodes(_control.get_class(), parent)
+
+	static func with_parent(control: VSplitContainer, parent: Node, ui: SweetUI) -> SwVSplitContainer:
+		var wrapper = SwVSplitContainer.new(control)
 		parent.add_child(control)
-		_ui = ui
+		wrapper._ui = ui
+		return wrapper
 	
 
 

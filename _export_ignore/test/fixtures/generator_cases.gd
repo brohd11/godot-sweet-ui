@@ -8,10 +8,14 @@ const TARGET_SUFFIX = '\nconst HANDWRITTEN_AFTER = "SweetUI stays literal"\n'
 const INFERENCE_MEMBERS = """
 var probe_parent := Control.new()
 var mode_inferred := color_rect(probe_parent).expand().full_rect().color(Color.GREEN).node()
+var static_inferred := Sweets.color_rect().expand().full_rect().color(Color.GREEN).node()
+var from_inferred := color_rect_from(ColorRect.new(), probe_parent).expand().color(Color.BLUE).node()
+var static_from_inferred := Sweets.color_rect(from_inferred).expand().c()
 """
 const ADDED_INFERENCE_MEMBERS = """
 var probe_parent := Control.new()
 var added_inferred := check_box(probe_parent).expand().text("Extra").node()
+var added_static_inferred := Sweets.check_box().expand().text("Static extra").node()
 """
 
 const CONTROL_BODY = """class SwControl extends RefCounted:

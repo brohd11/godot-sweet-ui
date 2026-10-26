@@ -16,12 +16,47 @@ sweets.button(column).text("Apply").disabled(false).pressed(func(): print("Apply
 
 `SweetUI.new(parent)` requires a parent node. `control()` and `color_rect()` create
 and attach one native node, then return a RefCounted wrapper. Their optional parent
-argument overrides the default parent. Wrapper constructors take an existing native
-control, its parent, and the owning `SweetUI` instance:
-`SwColorRect.new(control, parent, ui)`. They call
+argument overrides the default parent. Attached wrappers use
+`SwColorRect.with_parent(control, parent, ui)` with an existing native control,
+its parent, and the owning `SweetUI` instance. This calls
 `parent.add_child(control)` directly. `wrapper.ui()` returns that same typed owner,
 so chains can resume building controls: `ui.label().text("Title").ui().button()`.
 Callers must supply valid parents; invalid parents surface normal Godot errors.
+
+Every instance factory also has a typed `_from` companion for attaching an existing
+node, including subclasses of the native type:
+
+```gdscript
+var rect := sweets.color_rect_from(MyColorRect.new()).expand().color(Color.GREEN).node()
+var label := sweets.label_from(Label.new(), column).text("Existing node").c()
+```
+
+These helpers preserve the supplied instance and set the wrapper's `SweetUI` owner.
+The optional parent overrides the current default parent. Supply a valid, unparented
+node; these helpers call `add_child()` and do not automatically reparent.
+`node()` and its shorthand `c()` infer the wrapper's native type (`ColorRect` above).
+Accessing subclass-only members still requires a cast to the subclass.
+
+Use `SweetUI.Sweets` to create controls before attaching them:
+
+```gdscript
+const Sweets = SweetUI.Sweets
+
+var rect := Sweets.color_rect().expand().color(Color.GREEN).node()
+add_child(rect)
+```
+
+Every generated instance factory has a static counterpart with an optional typed node:
+`Sweets.color_rect(existing_rect)`. Omitting the argument or passing `null` creates a
+new, unattached node. Supplying a node wraps that same instance without changing its
+parent. Both APIs return the same typed wrappers and support the same fluent operations.
+Static wrappers return `null` from `ui()`. Attaching a node later does not assign a
+SweetUI owner to its wrapper.
+Callers must attach or free detached nodes; releasing a wrapper does not free its node.
+
+`SwColorRect.new(control)` wraps an existing control without changing its parent.
+Direct three-argument constructor calls must migrate to
+`SwColorRect.with_parent(control, parent, ui)`.
 
 Alongside Control and ColorRect, Sweet UI includes Button, Label, LineEdit, TextEdit,
 TextureRect, ProgressBar, and HBox, VBox, Grid, Margin, Panel, Scroll, Center, HSplit,
@@ -86,17 +121,23 @@ const TYPES = {
 }
 ```
 
+Factory-name overrides also name the instance companion: `rectangle` generates
+`rectangle()` and `rectangle_from()`. Names must be unique across both sets of helpers;
+collisions reject generation before any output changes.
+
 All wrapper classes live in `src/gen/sweets_generated.gd`.
+`src/sweets.gd` is fully generated and exposed as `SweetUI.Sweets`.
 `src/sweet_ui.gd` contains typed factories inside its
 `### GENERATED START` / `### GENERATED END` region. By default, their return types
 and constructors use `_Generated.SwColorRect` directly. Set `RE_EXPORT = true` in
-the prototype source to also expose aliases such as `SweetUI.SwColorRect`.
+the prototype source to also expose aliases such as `SweetUI.SwColorRect` and
+`SweetUI.Sweets.SwColorRect`. Both helper scripts preload the same `_Generated` classes.
 
-The generator uses fixed output paths for the entry script and wrapper classes.
-It validates both outputs before writing, creates missing output directories, and
+The generator uses fixed output paths for the entry script, static helpers, and wrapper classes.
+It validates all three outputs before writing, creates missing output directories, and
 skips unchanged files.
 Keep manual helpers outside the marked region.
-Generator and prototype files stay out of releases; commit both runtime files
+Generator and prototype files stay out of releases; commit all three runtime files
 and preserve their UIDs.
 
 Use class-body tags for fluent property setters and signal connections:
@@ -127,9 +168,9 @@ with the same name takes precedence for both setters and signal connections.
 
 Only standalone class-body tags are read. Tag-like strings and comments inside
 methods are ignored. Unknown members or non-writable properties reject generation before
-either runtime file is changed.
+any runtime file is changed.
 
-Prototypes contain operation methods over `_control`; constructors and typed
+Prototypes contain operation methods over `_control`; constructors, `with_parent()`, and typed
 `node()` / `ui()` accessors are generated. Additional state, prototype constants, static
 methods, and `super` calls are unsupported. Derived methods replace inherited ones.
 
