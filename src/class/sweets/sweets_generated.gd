@@ -53,6 +53,11 @@ class SwButton extends RefCounted:
 		return self
 
 
+	func pressed(callable: Callable) -> SwButton:
+		_control.pressed.connect(callable)
+		return self
+
+
 	func text(value: String) -> SwButton:
 		_control.text = value
 		return self
@@ -547,7 +552,6 @@ class SwMarginContainer extends RefCounted:
 		if bottom:
 			_control.add_theme_constant_override("margin_bottom", val)
 		return self
-	pass
 
 
 	func full_rect() -> SwMarginContainer:

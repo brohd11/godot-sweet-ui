@@ -39,7 +39,7 @@ var rect := sweets.color_rect().expand().full_rect().color(Color.GREEN).node()
 
 var column := sweets.v_box_container().expand().node()
 sweets.label(column).text("Settings").horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER)
-sweets.button(column).text("Apply").disabled(false)
+sweets.button(column).text("Apply").disabled(false).pressed(func(): print("Apply"))
 ```
 
 `Sweets.new(parent)` requires a parent node. `control()` and `color_rect()` create
@@ -84,7 +84,7 @@ Keep manual helpers outside the marked region.
 Generator and prototype files stay out of releases; commit both runtime files
 and preserve their UIDs.
 
-Use class-body tags for simple fluent property setters:
+Use class-body tags for fluent property setters and signal connections:
 
 ```gdscript
 class SwLabel extends SwControl:
@@ -94,12 +94,24 @@ class SwLabel extends SwControl:
 
 Each property produces a method such as `text(value: String) -> SwLabel` that
 assigns the native property and returns the wrapper. Types come from Parser's
-native API lookup, including resources and enums. Tags accept comma-separated
-property names and can be repeated; inherited tags are included and duplicates
-are removed. A handwritten method with the same name takes precedence.
+native API lookup, including resources and enums. Signal names instead produce a
+connection method such as `pressed(callable: Callable) -> SwButton`, which calls
+`_control.pressed.connect(callable)` and returns the wrapper.
+
+Split longer lists across repeated tags; properties and signals can be mixed:
+
+```gdscript
+class SwButton extends SwControl:
+	#! set text, icon, disabled
+	#! set toggle_mode, button_pressed, pressed
+	pass
+```
+
+Inherited tags are included and duplicate names are removed. A handwritten method
+with the same name takes precedence for both setters and signal connections.
 
 Only standalone class-body tags are read. Tag-like strings and comments inside
-methods are ignored. Unknown or non-writable properties reject generation before
+methods are ignored. Unknown members or non-writable properties reject generation before
 either runtime file is changed.
 
 Prototypes contain operation methods over `_control`; constructors and typed

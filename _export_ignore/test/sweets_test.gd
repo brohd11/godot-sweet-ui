@@ -85,6 +85,13 @@ static func _test_controls() -> void:
 	var texture = GradientTexture2D.new()
 	var button = sweets.button().text("Go").icon(texture).toggle_mode(true).button_pressed(true).disabled(true)
 	_check("Button setters", button.node().text == "Go" and button.node().icon == texture and button.node().button_pressed and button.node().disabled)
+	var presses: Array = []
+	_check("signal connection returns same wrapper", button.pressed(func(): presses.append(true)) == button)
+	button.node().pressed.emit()
+	_check("inherited Button pressed signal connects", presses == [true])
+	for method in button.get_script().get_script_method_list():
+		if method.name == &"pressed":
+			_check("signal callback argument is typed Callable", method.args.size() == 1 and method.args[0].type == TYPE_CALLABLE)
 	var settings = LabelSettings.new()
 	var label = sweets.label().text("Hello").label_settings(settings).horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER).vertical_alignment(VERTICAL_ALIGNMENT_BOTTOM).autowrap_mode(TextServer.AUTOWRAP_WORD_SMART)
 	_check("Label setters include resource and enums", label.node().text == "Hello" and label.node().label_settings == settings and label.node().horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER and label.node().autowrap_mode == TextServer.AUTOWRAP_WORD_SMART)
@@ -271,7 +278,7 @@ const NOT_A_TAG = """
 #! set missing_string_property
 """
 class SwControl:
-	#! set tooltip_text, visible
+	#! set tooltip_text, visible, mouse_entered
 	var _control: Control
 	func marker() -> String:
 		#! set missing_function_property
@@ -280,6 +287,13 @@ class SwColorRect extends SwControl:
 	#! set color, tooltip_text, color
 	#! set custom_minimum_size
 	pass #! set missing_inline_property
+class SwButton extends SwControl:
+	#! set text, pressed, pressed
+	#! set disabled, text
+	pass
+class SwLineEdit extends SwControl:
+	#! set text, text_changed
+	pass
 '''
 	_write(prototype, source)
 	var result = Generator.build_candidate(original, prototype)
@@ -291,6 +305,17 @@ class SwColorRect extends SwControl:
 		var wrapper = sweets.color_rect().tooltip_text("Inherited").color(Color.GREEN).custom_minimum_size(Vector2(32, 16)).visible(false)
 		_check("inherited and multiple tags remain fluent", wrapper.node().tooltip_text == "Inherited" and wrapper.node().color == Color.GREEN and not wrapper.node().visible and wrapper.node().custom_minimum_size == Vector2(32, 16))
 		_check("method strings preserve tag text", wrapper.marker() == "#! set another_missing_property")
+		var events: Array = []
+		var button = sweets.button().text("Go").pressed(func(): events.append("pressed")).disabled(false)
+		button.node().pressed.emit()
+		_check("mixed properties and signals across repeated tags", button.node().text == "Go" and events == ["pressed"])
+		_check("repeated signal tags deduplicate", result.classes_source.count("func pressed(") == 1)
+		wrapper.mouse_entered(func(): events.append("entered"))
+		wrapper.node().mouse_entered.emit()
+		_check("inherited signal tags connect", events == ["pressed", "entered"])
+		var line = sweets.line_edit().text_changed(func(value: String): events.append(value))
+		line.node().text_changed.emit("typed")
+		_check("signal callback receives native arguments", events.back() == "typed")
 		parent.free()
 	var custom_method = "\tfunc color(value: Color) -> SwColorRect:\n\t\t_control.modulate = value\n\t\treturn self\n"
 	_write(prototype, source.replace("class SwColorRect extends SwControl:\n", "class SwColorRect extends SwControl:\n" + custom_method))
@@ -303,13 +328,27 @@ class SwColorRect extends SwControl:
 		var wrapper = sweets.color_rect().color(Color.RED)
 		_check("handwritten method takes precedence", wrapper.node().modulate == Color.RED and wrapper.node().color == Color.WHITE)
 		parent.free()
+	var custom_signal = "\tfunc pressed(callable: Callable) -> SwButton:\n\t\t_control.pressed.connect(callable, Object.CONNECT_ONE_SHOT)\n\t\treturn self\n"
+	_write(prototype, source.replace("class SwButton extends SwControl:\n", "class SwButton extends SwControl:\n" + custom_signal))
+	result = Generator.build_candidate(original, prototype)
+	_check("handwritten signal override compiles", result.error == OK)
+	if result.error == OK:
+		_check("handwritten signal method emitted once", result.classes_source.count("func pressed(") == 1)
+		var parent = Control.new()
+		var sweets = result.validation.new(parent)
+		var events: Array = []
+		var button = sweets.button().pressed(func(): events.append(true))
+		button.node().pressed.emit()
+		button.node().pressed.emit()
+		_check("handwritten signal method takes precedence", events == [true])
+		parent.free()
 	# Store a valid pair, then prove invalid tags leave both outputs untouched.
 	_write(target, original)
 	var initial = Generator._generate_file(target, prototype)
 	_check("tag output pair writes successfully", initial.error == OK)
 	var saved_target = FileAccess.get_file_as_string(target)
 	var saved_classes = FileAccess.get_file_as_string(classes_path)
-	for invalid_tag in ["missing_property", "color,", "color; text"]:
+	for invalid_tag in ["missing_property", "missing_signal", "color,", "color; text"]:
 		_write(prototype, source.replace("#! set color, tooltip_text, color", "#! set " + invalid_tag))
 		result = Generator._generate_file(target, prototype)
 		_check("invalid setter tag rejected: " + invalid_tag, result.error != OK)

@@ -189,7 +189,7 @@ static func _emit_prototypes(parser, overrides: Dictionary, re_export: bool, lin
 		if collected.error != OK:
 			return collected
 		var methods: Dictionary = collected.methods
-		var setters = _emit_setters(native_type, name, collected.ancestors, tags.properties)
+		var setters = _emit_setters(native_type, name, collected.ancestors, tags.members)
 		if setters.error != OK:
 			return setters
 		var method_names = methods.keys()
@@ -224,22 +224,22 @@ static func _emit_prototypes(parser, overrides: Dictionary, re_export: bool, lin
 
 
 static func _collect_setter_tags(lines: PackedStringArray) -> Dictionary:
-	var properties: Dictionary = {}
+	var members: Dictionary = {}
 	for tag in TagScanner.scan_lines(lines, ""):
 		if tag.tag != "set" or not tag.owner_function.is_empty() or tag.owner_class.is_empty():
 			continue
 		if not lines[tag.line].left(tag.column).strip_edges().is_empty():
 			continue
 		var owner: String = tag.owner_class.trim_prefix(".")
-		var names: Array = properties.get_or_add(owner, [])
+		var names: Array = members.get_or_add(owner, [])
 		var arguments: String = tag.raw.trim_prefix("#!").strip_edges().trim_prefix("set").strip_edges()
 		for argument in arguments.split(","):
-			var property_name: String = argument.strip_edges()
-			if not property_name.is_valid_ascii_identifier():
-				return _failure("Invalid setter property on line %d: %s" % [tag.line + 1, property_name])
-			if not property_name in names:
-				names.append(property_name)
-	return {"error": OK, "properties": properties}
+			var member_name: String = argument.strip_edges()
+			if not member_name.is_valid_ascii_identifier():
+				return _failure("Invalid set member on line %d: %s" % [tag.line + 1, member_name])
+			if not member_name in names:
+				names.append(member_name)
+	return {"error": OK, "members": members}
 
 
 static func _emit_setters(native_type: String, wrapper: String, ancestors: Array[String], tags: Dictionary) -> Dictionary:
@@ -248,23 +248,26 @@ static func _emit_setters(native_type: String, wrapper: String, ancestors: Array
 		properties[property.name] = property
 	var methods: Dictionary = {}
 	for ancestor in ancestors:
-		for property_name: String in tags.get(ancestor, []):
-			if methods.has(property_name):
+		for member_name: String in tags.get(ancestor, []):
+			if methods.has(member_name):
 				continue
-			if not properties.has(property_name):
-				return _failure("Unknown %s setter property: %s" % [native_type, property_name])
-			var setter: String = ClassDB.class_get_property_setter(native_type, property_name)
-			if setter.is_empty() or properties[property_name].usage & PROPERTY_USAGE_READ_ONLY:
-				return _failure("Property is not writable: %s.%s" % [native_type, property_name])
-			if property_name in ["_init", "node"]:
-				return _failure("Setter conflicts with generated method: " + property_name)
-			var api_type: String = Parser.BuiltInChecker.get_member_type(native_type, property_name)
+			if member_name in ["_init", "node"]:
+				return _failure("Set member conflicts with generated method: " + member_name)
+			if not properties.has(member_name):
+				if Parser.BuiltInChecker.class_has_signal(native_type, member_name):
+					methods[member_name] = "\tfunc %s(callable: Callable) -> %s:\n\t\t_control.%s.connect(callable)\n\t\treturn self\n" % [member_name, wrapper, member_name]
+					continue
+				return _failure("Unknown %s property or signal: %s" % [native_type, member_name])
+			var setter: String = ClassDB.class_get_property_setter(native_type, member_name)
+			if setter.is_empty() or properties[member_name].usage & PROPERTY_USAGE_READ_ONLY:
+				return _failure("Property is not writable: %s.%s" % [native_type, member_name])
+			var api_type: String = Parser.BuiltInChecker.get_member_type(native_type, member_name)
 			if api_type.is_empty():
-				return _failure("Cannot resolve setter type: %s.%s" % [native_type, property_name])
+				return _failure("Cannot resolve setter type: %s.%s" % [native_type, member_name])
 			var value_type = Parser.Utils.type_path_to_display(Parser.Utils.type_path_from_api_enum(api_type))
 			if value_type == "Nil":
 				value_type = "Variant"
-			methods[property_name] = "\tfunc %s(value: %s) -> %s:\n\t\t_control.%s = value\n\t\treturn self\n" % [property_name, value_type, wrapper, property_name]
+			methods[member_name] = "\tfunc %s(value: %s) -> %s:\n\t\t_control.%s = value\n\t\treturn self\n" % [member_name, value_type, wrapper, member_name]
 	return {"error": OK, "methods": methods}
 
 

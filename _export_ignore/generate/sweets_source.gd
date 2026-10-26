@@ -26,7 +26,8 @@ class SwColorRect extends SwControl:
 
 
 class SwButton extends SwControl:
-	#! set text, icon, disabled, toggle_mode, button_pressed
+	#! set text, icon, disabled
+	#! set toggle_mode, button_pressed, pressed
 	pass
 
 
@@ -81,7 +82,6 @@ class SwMarginContainer extends SwControl:
 		if bottom:
 			_control.add_theme_constant_override("margin_bottom", val)
 		return self
-	pass
 
 
 class SwPanelContainer extends SwControl:
