@@ -159,8 +159,8 @@ static func _test_committed_output() -> bool:
 	if result.error != OK:
 		_failures.append(str(result.get("message", "Generation failed")))
 		return false
-	_check("committed entry script matches prototypes", result.source == original)
-	_check("committed wrappers match prototypes", result.classes_source == FileAccess.get_file_as_string(Generator.CLASSES_TARGET))
+	_check_output("committed entry script matches prototypes", original, result.source)
+	_check_output("committed wrappers match prototypes", FileAccess.get_file_as_string(Generator.CLASSES_TARGET), result.classes_source)
 	return true
 
 
@@ -253,6 +253,8 @@ static func _test_source_options() -> bool:
 		var ui = result.validation.new(parent)
 		_check("prototype names infer native type and factory", ui.color_rect().node() is ColorRect)
 		_check("reexports are disabled when omitted", not result.validation.get_script_constant_map().has("SwColorRect"))
+		var rect_source: String = result.classes_source.substr(result.classes_source.find("class SwColorRect"))
+		_check("handwritten methods and setters sort together alphabetically", rect_source.find("func color(") < rect_source.find("func expand(") and rect_source.find("func expand(") < rect_source.find("func full_rect("))
 		parent.free()
 	var overrides = [
 		{"name": "factory-only", "body": Cases.BASIC_BODY, "types": {"SwColorRect": {"factory": "rectangle"}}, "factory": "rectangle"},
@@ -445,3 +447,17 @@ static func _check(label: String, passed: bool) -> void:
 	_checks += 1
 	if not passed:
 		_failures.append("FAIL " + label)
+
+
+static func _check_output(label: String, committed: String, generated: String) -> void:
+	_check(label, committed == generated)
+	if committed == generated:
+		return
+	var expected_lines = committed.split("\n")
+	var actual_lines = generated.split("\n")
+	for i in maxi(expected_lines.size(), actual_lines.size()):
+		var expected = var_to_str(expected_lines[i]) if i < expected_lines.size() else "<EOF>"
+		var actual = var_to_str(actual_lines[i]) if i < actual_lines.size() else "<EOF>"
+		if expected != actual:
+			_failures.append("  First difference at line %d (%s, Godot %s): committed %s; generated %s" % [i + 1, OS.get_name(), Engine.get_version_info().string, expected, actual])
+			return

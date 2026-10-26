@@ -235,7 +235,10 @@ static func _emit_prototypes(parser, overrides: Dictionary, re_export: bool, lin
 		var setters = _emit_setters(native_type, name, collected.ancestors, tags.members)
 		if setters.error != OK:
 			return setters
-		var method_names = methods.keys()
+		# Parser keys are StringNames; their sort order depends on interned addresses.
+		var method_names: Array[String] = []
+		for method_name in methods:
+			method_names.append(str(method_name))
 		for setter_name in setters.methods:
 			if not methods.has(setter_name):
 				method_names.append(setter_name)

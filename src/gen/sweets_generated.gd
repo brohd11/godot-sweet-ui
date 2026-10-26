@@ -18,19 +18,6 @@ class SwButton extends RefCounted:
 	
 
 
-	func expand(v := true, h := true) -> SwButton:
-		if v:
-			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		if h:
-			_control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		return self
-
-
-	func full_rect() -> SwButton:
-		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
 	func button_pressed(value: bool) -> SwButton:
 		_control.button_pressed = value
 		return self
@@ -43,6 +30,19 @@ class SwButton extends RefCounted:
 
 	func disabled(value: bool) -> SwButton:
 		_control.disabled = value
+		return self
+
+
+	func expand(v := true, h := true) -> SwButton:
+		if v:
+			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		if h:
+			_control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		return self
+
+
+	func full_rect() -> SwButton:
+		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		return self
 
 
@@ -97,6 +97,11 @@ class SwCenterContainer extends RefCounted:
 	
 
 
+	func custom_minimum_size(value: Vector2) -> SwCenterContainer:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwCenterContainer:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -107,11 +112,6 @@ class SwCenterContainer extends RefCounted:
 
 	func full_rect() -> SwCenterContainer:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwCenterContainer:
-		_control.custom_minimum_size = value
 		return self
 
 
@@ -151,6 +151,16 @@ class SwColorRect extends RefCounted:
 	
 
 
+	func color(value: Color) -> SwColorRect:
+		_control.color = value
+		return self
+
+
+	func custom_minimum_size(value: Vector2) -> SwColorRect:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwColorRect:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -161,16 +171,6 @@ class SwColorRect extends RefCounted:
 
 	func full_rect() -> SwColorRect:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func color(value: Color) -> SwColorRect:
-		_control.color = value
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwColorRect:
-		_control.custom_minimum_size = value
 		return self
 
 
@@ -205,6 +205,11 @@ class SwControl extends RefCounted:
 	
 
 
+	func custom_minimum_size(value: Vector2) -> SwControl:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwControl:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -215,11 +220,6 @@ class SwControl extends RefCounted:
 
 	func full_rect() -> SwControl:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwControl:
-		_control.custom_minimum_size = value
 		return self
 
 
@@ -254,6 +254,16 @@ class SwGridContainer extends RefCounted:
 	
 
 
+	func columns(value: int) -> SwGridContainer:
+		_control.columns = value
+		return self
+
+
+	func custom_minimum_size(value: Vector2) -> SwGridContainer:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwGridContainer:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -264,16 +274,6 @@ class SwGridContainer extends RefCounted:
 
 	func full_rect() -> SwGridContainer:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func columns(value: int) -> SwGridContainer:
-		_control.columns = value
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwGridContainer:
-		_control.custom_minimum_size = value
 		return self
 
 
@@ -308,6 +308,16 @@ class SwHBoxContainer extends RefCounted:
 	
 
 
+	func alignment(value: BoxContainer.AlignmentMode) -> SwHBoxContainer:
+		_control.alignment = value
+		return self
+
+
+	func custom_minimum_size(value: Vector2) -> SwHBoxContainer:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwHBoxContainer:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -318,16 +328,6 @@ class SwHBoxContainer extends RefCounted:
 
 	func full_rect() -> SwHBoxContainer:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func alignment(value: BoxContainer.AlignmentMode) -> SwHBoxContainer:
-		_control.alignment = value
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwHBoxContainer:
-		_control.custom_minimum_size = value
 		return self
 
 
@@ -362,6 +362,16 @@ class SwHSplitContainer extends RefCounted:
 	
 
 
+	func collapsed(value: bool) -> SwHSplitContainer:
+		_control.collapsed = value
+		return self
+
+
+	func custom_minimum_size(value: Vector2) -> SwHSplitContainer:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwHSplitContainer:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -372,16 +382,6 @@ class SwHSplitContainer extends RefCounted:
 
 	func full_rect() -> SwHSplitContainer:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func collapsed(value: bool) -> SwHSplitContainer:
-		_control.collapsed = value
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwHSplitContainer:
-		_control.custom_minimum_size = value
 		return self
 
 
@@ -421,6 +421,16 @@ class SwLabel extends RefCounted:
 	
 
 
+	func autowrap_mode(value: TextServer.AutowrapMode) -> SwLabel:
+		_control.autowrap_mode = value
+		return self
+
+
+	func custom_minimum_size(value: Vector2) -> SwLabel:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwLabel:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -431,16 +441,6 @@ class SwLabel extends RefCounted:
 
 	func full_rect() -> SwLabel:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func autowrap_mode(value: TextServer.AutowrapMode) -> SwLabel:
-		_control.autowrap_mode = value
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwLabel:
-		_control.custom_minimum_size = value
 		return self
 
 
@@ -495,6 +495,16 @@ class SwLineEdit extends RefCounted:
 	
 
 
+	func custom_minimum_size(value: Vector2) -> SwLineEdit:
+		_control.custom_minimum_size = value
+		return self
+
+
+	func editable(value: bool) -> SwLineEdit:
+		_control.editable = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwLineEdit:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -505,16 +515,6 @@ class SwLineEdit extends RefCounted:
 
 	func full_rect() -> SwLineEdit:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwLineEdit:
-		_control.custom_minimum_size = value
-		return self
-
-
-	func editable(value: bool) -> SwLineEdit:
-		_control.editable = value
 		return self
 
 
@@ -564,11 +564,21 @@ class SwMarginContainer extends RefCounted:
 	
 
 
+	func custom_minimum_size(value: Vector2) -> SwMarginContainer:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwMarginContainer:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		if h:
 			_control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		return self
+
+
+	func full_rect() -> SwMarginContainer:
+		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		return self
 
 
@@ -581,16 +591,6 @@ class SwMarginContainer extends RefCounted:
 			_control.add_theme_constant_override("margin_top", val)
 		if bottom:
 			_control.add_theme_constant_override("margin_bottom", val)
-		return self
-
-
-	func full_rect() -> SwMarginContainer:
-		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwMarginContainer:
-		_control.custom_minimum_size = value
 		return self
 
 
@@ -625,6 +625,11 @@ class SwPanelContainer extends RefCounted:
 	
 
 
+	func custom_minimum_size(value: Vector2) -> SwPanelContainer:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwPanelContainer:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -635,11 +640,6 @@ class SwPanelContainer extends RefCounted:
 
 	func full_rect() -> SwPanelContainer:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwPanelContainer:
-		_control.custom_minimum_size = value
 		return self
 
 
@@ -674,6 +674,11 @@ class SwProgressBar extends RefCounted:
 	
 
 
+	func custom_minimum_size(value: Vector2) -> SwProgressBar:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwProgressBar:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -684,11 +689,6 @@ class SwProgressBar extends RefCounted:
 
 	func full_rect() -> SwProgressBar:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwProgressBar:
-		_control.custom_minimum_size = value
 		return self
 
 
@@ -743,6 +743,11 @@ class SwScrollContainer extends RefCounted:
 	
 
 
+	func custom_minimum_size(value: Vector2) -> SwScrollContainer:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwScrollContainer:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -751,18 +756,13 @@ class SwScrollContainer extends RefCounted:
 		return self
 
 
-	func full_rect() -> SwScrollContainer:
-		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwScrollContainer:
-		_control.custom_minimum_size = value
-		return self
-
-
 	func follow_focus(value: bool) -> SwScrollContainer:
 		_control.follow_focus = value
+		return self
+
+
+	func full_rect() -> SwScrollContainer:
+		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		return self
 
 
@@ -817,6 +817,16 @@ class SwTextEdit extends RefCounted:
 	
 
 
+	func custom_minimum_size(value: Vector2) -> SwTextEdit:
+		_control.custom_minimum_size = value
+		return self
+
+
+	func editable(value: bool) -> SwTextEdit:
+		_control.editable = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwTextEdit:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -827,16 +837,6 @@ class SwTextEdit extends RefCounted:
 
 	func full_rect() -> SwTextEdit:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwTextEdit:
-		_control.custom_minimum_size = value
-		return self
-
-
-	func editable(value: bool) -> SwTextEdit:
-		_control.editable = value
 		return self
 
 
@@ -886,6 +886,11 @@ class SwTextureRect extends RefCounted:
 	
 
 
+	func custom_minimum_size(value: Vector2) -> SwTextureRect:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwTextureRect:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -894,18 +899,13 @@ class SwTextureRect extends RefCounted:
 		return self
 
 
-	func full_rect() -> SwTextureRect:
-		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwTextureRect:
-		_control.custom_minimum_size = value
-		return self
-
-
 	func expand_mode(value: TextureRect.ExpandMode) -> SwTextureRect:
 		_control.expand_mode = value
+		return self
+
+
+	func full_rect() -> SwTextureRect:
+		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		return self
 
 
@@ -950,6 +950,16 @@ class SwVBoxContainer extends RefCounted:
 	
 
 
+	func alignment(value: BoxContainer.AlignmentMode) -> SwVBoxContainer:
+		_control.alignment = value
+		return self
+
+
+	func custom_minimum_size(value: Vector2) -> SwVBoxContainer:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwVBoxContainer:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -960,16 +970,6 @@ class SwVBoxContainer extends RefCounted:
 
 	func full_rect() -> SwVBoxContainer:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func alignment(value: BoxContainer.AlignmentMode) -> SwVBoxContainer:
-		_control.alignment = value
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwVBoxContainer:
-		_control.custom_minimum_size = value
 		return self
 
 
@@ -1004,6 +1004,16 @@ class SwVSplitContainer extends RefCounted:
 	
 
 
+	func collapsed(value: bool) -> SwVSplitContainer:
+		_control.collapsed = value
+		return self
+
+
+	func custom_minimum_size(value: Vector2) -> SwVSplitContainer:
+		_control.custom_minimum_size = value
+		return self
+
+
 	func expand(v := true, h := true) -> SwVSplitContainer:
 		if v:
 			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -1014,16 +1024,6 @@ class SwVSplitContainer extends RefCounted:
 
 	func full_rect() -> SwVSplitContainer:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		return self
-
-
-	func collapsed(value: bool) -> SwVSplitContainer:
-		_control.collapsed = value
-		return self
-
-
-	func custom_minimum_size(value: Vector2) -> SwVSplitContainer:
-		_control.custom_minimum_size = value
 		return self
 
 
