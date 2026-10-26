@@ -3,11 +3,13 @@ extends RefCounted
 const UI = preload("res://addons/sweet_ui/src/sweet_ui.gd")
 const Wrappers = preload("res://addons/sweet_ui/src/gen/sweets_generated.gd")
 const Generator = preload("res://addons/sweet_ui/_export_ignore/generate/sweets_gen.gd")
+const Cases = preload("res://addons/sweet_ui/_export_ignore/test/fixtures/generator_cases.gd")
 const Inference = preload("res://addons/sweet_ui/_export_ignore/test/fixtures/sweets_inference.gd")
 
 static var _failures: Array[String]
 static var _checks: int
 static var _validations: Array[GDScript]
+static var _temp_dirs: Array[String]
 
 
 class CountedRect extends ColorRect:
@@ -21,15 +23,23 @@ static func run_tests() -> Dictionary:
 	_failures = []
 	_checks = 0
 	_validations = []
+	_temp_dirs = []
 	var original_target = FileAccess.get_file_as_string(Generator.TARGET)
 	var original_classes = FileAccess.get_file_as_string(Generator.CLASSES_TARGET)
 	_check("runtime checks complete", _test_runtime())
 	_check("control checks complete", _test_controls())
+	_check("committed output checks complete", _test_committed_output())
 	_check("generation checks complete", _test_generation())
+	_check("source option checks complete", _test_source_options())
+	_check("additional wrapper checks complete", _test_additional_wrapper())
 	_check("setter tag checks complete", _test_setter_tags())
 	for validation in _validations:
 		_check("temporary validation releases its type cycle", Generator._clear_validation(validation) == OK)
 	_validations.clear()
+	for path in _temp_dirs:
+		_remove_workspace(path)
+		_check("temporary workspace removed", not DirAccess.dir_exists_absolute(path))
+	_temp_dirs.clear()
 	_check("tests preserve production entry script", FileAccess.get_file_as_string(Generator.TARGET) == original_target)
 	_check("tests preserve production wrapper classes", FileAccess.get_file_as_string(Generator.CLASSES_TARGET) == original_classes)
 	var output: Array = ["Sweet UI factories: %d checks, %d failures" % [_checks, _failures.size()]]
@@ -142,131 +152,142 @@ static func _test_controls() -> bool:
 	return true
 
 
-static func _test_generation() -> bool:
+static func _test_committed_output() -> bool:
 	var original = FileAccess.get_file_as_string(Generator.TARGET)
 	var result = _build_candidate(original)
-	_check("committed generated output matches prototypes", result.error == OK and result.source == original)
+	_check("production prototypes and entry script compile", result.error == OK)
 	if result.error != OK:
 		_failures.append(str(result.get("message", "Generation failed")))
 		return false
-	_check("wrapper bodies live in separate generated file", not result.source.contains("class SwColorRect") and result.classes_source.contains("class SwColorRect"))
-	_check("reexports disabled by default", not result.source.contains("const SwColorRect ="))
-	_check("disabled reexports qualify factory return and constructor", result.source.contains("-> _Generated.SwColorRect:") and result.source.contains("return _Generated.SwColorRect.new(ColorRect.new(), parent, self)"))
-	_check("unused runtime map removed", not result.source.contains("_MAP"))
-	_check("attachment helper removed", not result.classes_source.contains("_Helpers") and not result.classes_source.contains("func _add_child"))
-	_check("constructors attach directly", result.classes_source.contains("parent.add_child(control)"))
-	_check("factory uses required default parent directly", result.source.contains("parent = _node\n") and not result.source.contains("else null"))
-	_check("generated wrapper file matches prototypes", FileAccess.get_file_as_string(result.classes_path) == result.classes_source)
-	original = original.replace("class_name SweetUI\n", "")
-	var source = FileAccess.get_file_as_string(Generator.SOURCE)
-	var temp_dir = OS.get_environment("TMPDIR")
-	if temp_dir.is_empty():
-		temp_dir = "/tmp"
-	temp_dir = temp_dir.path_join("sweets_test_%d" % Time.get_ticks_usec())
-	DirAccess.make_dir_recursive_absolute(temp_dir)
-	var target = temp_dir.path_join("sweet_ui.gd")
-	var prototype = temp_dir.path_join("prototype.gd")
-	var classes_path = temp_dir.path_join("gen/sweets_generated.gd")
-	_check("source option checks complete", _test_source_options(original, source, prototype, target, classes_path))
-	var prefix = "## Handwritten prefix with trailing spaces.  \n" + original.left(original.find(Generator.START))
-	var suffix = '\nconst HANDWRITTEN_AFTER = "SweetUI stays literal"\n'
-	var initial = prefix + Generator.START + "\n# stale generated content\n" + Generator.END + suffix
+	_check("committed entry script matches prototypes", result.source == original)
+	_check("committed wrappers match prototypes", result.classes_source == FileAccess.get_file_as_string(Generator.CLASSES_TARGET))
+	return true
+
+
+static func _test_generation() -> bool:
+	var workspace = _workspace("generation")
+	var target: String = workspace.target
+	var prototype: String = workspace.prototype
+	var classes_path: String = workspace.classes
+	var initial = Cases.target()
+	var prefix = initial.left(initial.find(Generator.START))
+	_write(prototype, Cases.source())
 	_write(target, initial)
 	_write(target + ".uid", "uid://test_sentinel\n")
 	_check("wrapper output directory starts absent", not DirAccess.dir_exists_absolute(classes_path.get_base_dir()))
-	result = Generator._generate_file(target, Generator.SOURCE, classes_path)
-	_check("generation replaces stale region", result.error == OK and result.changed)
+	var result = Generator._generate_file(target, prototype, classes_path)
+	_check("generation replaces stale region", result.error == OK and result.get("changed", false))
+	if result.error != OK:
+		_failures.append(str(result.get("message", "Generation failed")))
+		return false
 	_check("generation creates wrapper output directory", DirAccess.dir_exists_absolute(classes_path.get_base_dir()))
 	_write(classes_path + ".uid", "uid://classes_sentinel\n")
 	var generated = FileAccess.get_file_as_string(target)
 	var generated_classes = FileAccess.get_file_as_string(classes_path)
-	_check("both generated outputs are written", generated_classes.contains("class SwColorRect") and generated.contains("sweets_generated.gd"))
-	_check("handwritten prefix preserved byte for byte", generated.begins_with(prefix + Generator.START + "\n"))
-	_check("handwritten suffix preserved byte for byte", generated.ends_with(Generator.END + suffix))
+	_check("both generated outputs are written", generated_classes.contains("class SwColorRect") and generated.contains(classes_path))
+	_check("handwritten prefix preserved byte for byte", generated.begins_with(prefix))
+	_check("handwritten suffix preserved byte for byte", generated.ends_with(Cases.TARGET_SUFFIX))
 	_check("uid preserved", FileAccess.get_file_as_string(target + ".uid") == "uid://test_sentinel\n")
 	var modified = FileAccess.get_modified_time(target)
-	result = Generator._generate_file(target, Generator.SOURCE, classes_path)
+	result = Generator._generate_file(target, prototype, classes_path)
 	_check("second generation skips writing", result.error == OK and not result.changed)
 	_check("unchanged generation preserves file timestamp", FileAccess.get_modified_time(target) == modified)
 	_check("repeated generation deterministic", generated == FileAccess.get_file_as_string(target))
 	_write(classes_path, generated_classes + "# stale\n")
-	result = Generator._generate_file(target, Generator.SOURCE, classes_path)
-	_check("classes can regenerate without changing SweetUI", result.error == OK and result.changed and FileAccess.get_modified_time(target) == modified and FileAccess.get_file_as_string(classes_path) == generated_classes)
+	result = Generator._generate_file(target, prototype, classes_path)
+	_check("classes regenerate independently", result.error == OK and result.changed and FileAccess.get_modified_time(target) == modified and FileAccess.get_file_as_string(classes_path) == generated_classes)
 	_check("generated classes uid preserved", FileAccess.get_file_as_string(classes_path + ".uid") == "uid://classes_sentinel\n")
 	var crlf = initial.replace("\n", "\r\n")
-	result = _build_candidate(crlf, Generator.SOURCE, target, classes_path)
-	_check("CRLF handwritten text preserved", result.error == OK and result.source.begins_with(prefix.replace("\n", "\r\n")) and result.source.ends_with(suffix.replace("\n", "\r\n")))
+	result = _build_candidate(crlf, prototype, target, classes_path)
+	_check("CRLF handwritten text preserved", result.error == OK and result.source.begins_with(prefix.replace("\n", "\r\n")) and result.source.ends_with(Cases.TARGET_SUFFIX.replace("\n", "\r\n")))
 	if result.error == OK:
-		var again = _build_candidate(result.source, Generator.SOURCE, target, classes_path)
+		var again = _build_candidate(result.source, prototype, target, classes_path)
 		_check("CRLF generation is idempotent", again.error == OK and again.source == result.source)
 		_check("CRLF generation keeps consistent line endings", not result.source.replace("\r\n", "").contains("\r"))
-	_write(temp_dir.path_join("payload.gd"), "extends RefCounted\nconst VALUE = 42\n")
-	var relative = initial.replace("extends RefCounted\n", 'extends RefCounted\nconst PAYLOAD = preload("./payload.gd")\n')
+	_write(workspace.dir.path_join("payload.gd"), "extends RefCounted\nconst VALUE = 42\n")
+	var relative = Cases.target("", '\nconst PAYLOAD = preload("./payload.gd")\n')
 	_write(target, relative)
-	result = Generator._generate_file(target, Generator.SOURCE, classes_path)
+	result = Generator._generate_file(target, prototype, classes_path)
 	_check("validation preserves handwritten relative preloads", result.error == OK and FileAccess.get_file_as_string(target).contains('const PAYLOAD = preload("./payload.gd")'))
 	for malformed in [initial.replace(Generator.START, "# missing"), initial.replace(Generator.END, "# missing"), initial + Generator.START + "\n", Generator.END + "\n" + Generator.START]:
 		_write(target, malformed)
-		result = Generator._generate_file(target, Generator.SOURCE, classes_path)
+		result = Generator._generate_file(target, prototype, classes_path)
 		_check("malformed markers rejected without writing", result.error != OK and FileAccess.get_file_as_string(target) == malformed)
-		_check("malformed markers leave generated classes intact", FileAccess.get_file_as_string(classes_path) == generated_classes)
+		_check("malformed markers preserve wrapper output", FileAccess.get_file_as_string(classes_path) == generated_classes)
 	_write(target, initial)
-	result = Generator._generate_file(target, temp_dir.path_join("absent.gd"), classes_path)
-	_check("missing prototypes leave target intact", result.error != OK and FileAccess.get_file_as_string(target) == initial)
-	_write(prototype, source.replace("const TYPES = {}", 'const TYPES = {"SwMissing": {"node": "ColorRect"}}'))
-	result = Generator._generate_file(target, prototype, classes_path)
-	_check("missing template leaves target intact", result.error != OK and FileAccess.get_file_as_string(target) == initial)
-	var override = '\tfunc full_rect() -> SwColorRect:\n\t\t_control.tooltip_text = "SwControl super static -> SwControl:"\n\t\treturn self\n\n'
-	var multiline = '\n\tfunc note(\n\t\tvalue: String = "SwControl -> SwControl:",\n\t) -> SwColorRect:\n\t\t_control.tooltip_text = value\n\t\treturn self\n'
-	_write(prototype, source.replace("class SwColorRect extends SwControl:\n", "class SwColorRect extends SwControl:\n" + override + multiline))
+	result = Generator._generate_file(target, workspace.dir.path_join("absent.gd"), classes_path)
+	_check("missing prototypes preserve both outputs", result.error != OK and FileAccess.get_file_as_string(target) == initial and FileAccess.get_file_as_string(classes_path) == generated_classes)
+	for invalid_source in [Cases.source(Cases.BASIC_BODY, {"TYPES": {"SwMissing": {"node": "ColorRect"}}}), Cases.source(Cases.UNSUPPORTED_BODY)]:
+		_write(prototype, invalid_source)
+		result = Generator._generate_file(target, prototype, classes_path)
+		_check("invalid prototypes preserve both outputs", result.error != OK and FileAccess.get_file_as_string(target) == initial and FileAccess.get_file_as_string(classes_path) == generated_classes)
+	_write(prototype, Cases.source(Cases.OVERRIDE_BODY))
 	result = _build_candidate(initial, prototype, target, classes_path)
 	_check("derived overrides and multiline signatures generate", result.error == OK)
 	if result.error == OK:
 		var compiled: GDScript = result.validation
 		_check("validation preserves owner names in strings", compiled.get_script_constant_map().HANDWRITTEN_AFTER == "SweetUI stays literal")
-		_check("custom generated source compiles", compiled.get_script_method_list().any(func(method): return method.name == &"color_rect"))
-		var custom_parent = Control.new()
-		var custom = compiled.new(custom_parent)
-		var custom_rect = custom.color_rect()
-		_check("temporary generated wrapper keeps typed owner", custom_rect.ui() == custom)
-		custom_rect.full_rect()
-		_check("derived operation overrides inherited body", custom_rect.node().tooltip_text == "SwControl super static -> SwControl:")
-		custom_rect.note()
-		_check("signature defaults and string contents preserved", custom_rect.node().tooltip_text == "SwControl -> SwControl:")
-		custom_parent.free()
-	var unsupported = "\tfunc unsupported() -> SwColorRect:\n\t\tsuper.full_rect()\n\t\treturn self\n\n"
-	_write(prototype, source.replace("class SwColorRect extends SwControl:\n", "class SwColorRect extends SwControl:\n" + unsupported))
-	result = Generator._generate_file(target, prototype, classes_path)
-	_check("unsupported super calls leave target intact", result.error != OK and FileAccess.get_file_as_string(target) == initial)
-	for file in DirAccess.get_files_at(classes_path.get_base_dir()):
-		DirAccess.remove_absolute(classes_path.get_base_dir().path_join(file))
-	DirAccess.remove_absolute(classes_path.get_base_dir())
-	for file in DirAccess.get_files_at(temp_dir):
-		DirAccess.remove_absolute(temp_dir.path_join(file))
-	DirAccess.remove_absolute(temp_dir)
+		var parent = Control.new()
+		var ui = compiled.new(parent)
+		var rect = ui.color_rect()
+		_check("temporary generated wrapper keeps typed owner", rect.ui() == ui)
+		rect.full_rect()
+		_check("derived operation overrides inherited body", rect.node().tooltip_text == "SwControl super static -> SwControl:")
+		rect.note()
+		_check("signature defaults and string contents preserved", rect.node().tooltip_text == "SwControl -> SwControl:")
+		parent.free()
 	return true
 
 
-static func _test_source_options(original: String, source: String, prototype: String, target: String, classes_path: String) -> bool:
-	var inferred = source.replace("const TYPES = {}\n", "").replace("const RE_EXPORT = false\n", "")
-	_write(prototype, inferred)
+static func _test_source_options() -> bool:
+	var workspace = _workspace("options")
+	var target: String = workspace.target
+	var prototype: String = workspace.prototype
+	var classes_path: String = workspace.classes
+	var original = Cases.target()
+	_write(prototype, Cases.source())
 	var result = _build_candidate(original, prototype, target, classes_path)
 	_check("catalog and reexport settings are optional", result.error == OK)
 	if result.error == OK:
-		_check("prototype names infer native and snake_case factory", result.source.contains("func color_rect(") and result.source.contains("ColorRect.new()"))
-	_write(prototype, source.replace("const TYPES = {}", 'const TYPES = {"SwColorRect": {"factory": "rectangle"}}'))
-	result = _build_candidate(original, prototype, target, classes_path)
-	_check("factory-only override preserves inferred native type", result.error == OK and result.source.contains("func rectangle(") and result.source.contains("ColorRect.new()"))
-	_write(prototype, source.replace("SwColorRect", "SwRect").replace("const TYPES = {}", 'const TYPES = {"SwRect": {"node": "ColorRect"}}'))
-	result = _build_candidate(original, prototype, target, classes_path)
-	_check("native-only override preserves inferred factory name", result.error == OK and result.source.contains("func rect(") and result.source.contains("ColorRect.new()"))
-	for bad_source in [source.replace("SwColorRect", "SwMissing"), source.replace("const TYPES = {}", 'const TYPES = {"SwColorRect": {"factory": "control"}}')]:
-		_write(prototype, bad_source)
+		var parent = Control.new()
+		var ui = result.validation.new(parent)
+		_check("prototype names infer native type and factory", ui.color_rect().node() is ColorRect)
+		_check("reexports are disabled when omitted", not result.validation.get_script_constant_map().has("SwColorRect"))
+		parent.free()
+	var overrides = [
+		{"name": "factory-only", "body": Cases.BASIC_BODY, "types": {"SwColorRect": {"factory": "rectangle"}}, "factory": "rectangle"},
+		{"name": "native-only", "body": Cases.RENAMED_BODY, "types": {"SwRect": {"node": "ColorRect"}}, "factory": "rect"},
+		{"name": "combined", "body": Cases.RENAMED_BODY, "types": {"SwRect": {"node": "ColorRect", "factory": "rectangle"}}, "factory": "rectangle"},
+	]
+	for entry in overrides:
+		_write(prototype, Cases.source(entry.body, {"TYPES": entry.types}))
 		result = _build_candidate(original, prototype, target, classes_path)
-		_check("unresolved types and factory conflicts rejected", result.error != OK)
-	var with_inference = original.replace("var _node: Node", "var _node: Node\nvar probe_parent := Control.new()\nvar mode_inferred := color_rect(probe_parent).expand().full_rect().color(Color.GREEN).node()")
+		_check(entry.name + " override compiles", result.error == OK)
+		if result.error == OK:
+			var parent = Control.new()
+			var ui = result.validation.new(parent)
+			var rect = ui.call(entry.factory)
+			_check(entry.name + " override constructs expected node", rect.node() is ColorRect and rect.node().get_parent() == parent and rect.ui() == ui)
+			parent.free()
+	var settings = {"TYPES": {"SwColorRect": {"factory": "rectangle"}}, "RE_EXPORT": true}
+	_write(prototype, Cases.source(Cases.BASIC_BODY, settings))
+	var normal = _build_candidate(original, prototype, target, classes_path)
+	_write(prototype, Cases.source(Cases.BASIC_BODY, settings, true))
+	var formatted = _build_candidate(original, prototype, target, classes_path)
+	_check("settings formatting does not change generation", normal.error == OK and formatted.error == OK and normal.source == formatted.source and normal.classes_source == formatted.classes_source)
+	var invalid_sources = [
+		Cases.source(Cases.MISSING_NATIVE_BODY),
+		Cases.source(Cases.BASIC_BODY, {"TYPES": {"SwColorRect": {"factory": "control"}}}),
+		Cases.source(Cases.BASIC_BODY, {"TYPES": []}),
+		Cases.source(Cases.BASIC_BODY, {"RE_EXPORT": "invalid"}),
+	]
+	for invalid_source in invalid_sources:
+		_write(prototype, invalid_source)
+		result = _build_candidate(original, prototype, target, classes_path)
+		_check("invalid native types, factory conflicts, and settings rejected", result.error != OK)
+	var with_inference = Cases.target(Cases.INFERENCE_MEMBERS)
 	for enabled in [false, true]:
-		_write(prototype, source.replace("const RE_EXPORT = false", "const RE_EXPORT = " + str(enabled).to_lower()))
+		_write(prototype, Cases.source(Cases.BASIC_BODY, {"TYPES": {}, "RE_EXPORT": enabled}))
 		result = _build_candidate(with_inference, prototype, target, classes_path)
 		_check("reexport mode compiles: " + str(enabled), result.error == OK)
 		if result.error != OK:
@@ -278,125 +299,130 @@ static func _test_source_options(original: String, source: String, prototype: St
 			if property.name == "mode_inferred":
 				inferred_type = property.class_name
 		_check("fluent inference preserved in both reexport modes", inferred_type == "ColorRect")
-		var default_parent = Control.new()
-		var sweets = compiled.new(default_parent)
-		_check("fluent chain runs in both reexport modes", sweets.mode_inferred.color == Color.GREEN)
-		sweets.probe_parent.free()
-		default_parent.free()
+		var parent = Control.new()
+		var ui = compiled.new(parent)
+		_check("fluent chain runs in both reexport modes", ui.mode_inferred.color == Color.GREEN)
 		if enabled:
-			var parent = Control.new()
 			var wrapper_type = compiled.get_script_constant_map().SwColorRect
-			var wrapper = wrapper_type.new(ColorRect.new(), parent, sweets)
-			_check("reexported constructor keeps owner", wrapper.ui() == sweets)
-			_check("reexported constructor accepts parent", wrapper.node().get_parent() == parent)
-			parent.free()
+			var wrapper = wrapper_type.new(ColorRect.new(), parent, ui)
+			_check("reexported constructor keeps parent and owner", wrapper.node().get_parent() == parent and wrapper.ui() == ui)
+		ui.probe_parent.free()
+		parent.free()
+	return true
+
+
+static func _test_additional_wrapper() -> bool:
+	var workspace = _workspace("additional")
+	_write(workspace.prototype, Cases.source(Cases.ADDITIONAL_BODY))
+	var result = _build_candidate(Cases.target(Cases.ADDED_INFERENCE_MEMBERS), workspace.prototype, workspace.target, workspace.classes)
+	_check("additional supported wrapper compiles", result.error == OK)
+	if result.error != OK:
+		return false
+	var compiled: GDScript = result.validation
+	var inferred_type = ""
+	for property in compiled.get_script_property_list():
+		if property.name == "added_inferred":
+			inferred_type = property.class_name
+	_check("additional wrapper preserves inherited fluent inference", inferred_type == "CheckBox")
+	var parent = Control.new()
+	var ui = compiled.new(parent)
+	var check_box = ui.check_box().expand().text("Added").button_pressed(true)
+	_check("additional wrapper inherits operations and native setters", check_box.node().text == "Added" and check_box.node().button_pressed and check_box.node().size_flags_horizontal == Control.SIZE_EXPAND_FILL)
+	_check("additional wrapper keeps parent and owner", check_box.node().get_parent() == parent and check_box.ui() == ui)
+	_check("additional inferred chain executes", ui.added_inferred.text == "Extra")
+	ui.probe_parent.free()
+	parent.free()
 	return true
 
 
 static func _test_setter_tags() -> bool:
-	var temp_dir = OS.get_environment("TMPDIR")
-	if temp_dir.is_empty():
-		temp_dir = "/tmp"
-	temp_dir = temp_dir.path_join("sweets_tags_%d" % Time.get_ticks_usec())
-	DirAccess.make_dir_recursive_absolute(temp_dir)
-	var prototype = temp_dir.path_join("prototype.gd")
-	var target = temp_dir.path_join("sweet_ui.gd")
-	var classes_path = temp_dir.path_join("gen/sweets_generated.gd")
-	var original = FileAccess.get_file_as_string(Generator.TARGET).replace("class_name SweetUI\n", "")
-	var source = '''extends RefCounted
-# Only genuine class-body comments should be processed.
-#! set missing_root_property
-const NOT_A_TAG = """
-#! set missing_string_property
-"""
-class SwControl:
-	#! set tooltip_text, visible, mouse_entered
-	var _control: Control
-	func marker() -> String:
-		#! set missing_function_property
-		return "#! set another_missing_property"
-class SwColorRect extends SwControl:
-	#! set color, tooltip_text, color
-	#! set custom_minimum_size
-	pass #! set missing_inline_property
-class SwButton extends SwControl:
-	#! set text, pressed, pressed
-	#! set disabled, text
-	pass
-class SwLineEdit extends SwControl:
-	#! set text, text_changed
-	pass
-'''
-	_write(prototype, source)
+	var workspace = _workspace("tags")
+	var target: String = workspace.target
+	var prototype: String = workspace.prototype
+	var classes_path: String = workspace.classes
+	var original = Cases.target()
+	_write(prototype, Cases.source(Cases.tag_body()))
 	var result = _build_candidate(original, prototype, target, classes_path)
 	_check("class-body tags ignore strings and function bodies", result.error == OK)
 	if result.error == OK:
 		_check("repeated setter tags deduplicate", result.classes_source.count("func color(") == 1)
 		var parent = Control.new()
-		var sweets = result.validation.new(parent)
-		var wrapper = sweets.color_rect().tooltip_text("Inherited").color(Color.GREEN).custom_minimum_size(Vector2(32, 16)).visible(false)
+		var ui = result.validation.new(parent)
+		var wrapper = ui.color_rect().tooltip_text("Inherited").color(Color.GREEN).custom_minimum_size(Vector2(32, 16)).visible(false)
 		_check("inherited and multiple tags remain fluent", wrapper.node().tooltip_text == "Inherited" and wrapper.node().color == Color.GREEN and not wrapper.node().visible and wrapper.node().custom_minimum_size == Vector2(32, 16))
 		_check("method strings preserve tag text", wrapper.marker() == "#! set another_missing_property")
 		var events: Array = []
-		var button = sweets.button().text("Go").pressed(func(): events.append("pressed")).disabled(false)
+		var button = ui.button().text("Go").pressed(func(): events.append("pressed")).disabled(false)
 		button.node().pressed.emit()
-		_check("mixed properties and signals across repeated tags", button.node().text == "Go" and events == ["pressed"])
+		_check("mixed properties and signals across repeated tags", events == ["pressed"])
 		_check("repeated signal tags deduplicate", result.classes_source.count("func pressed(") == 1)
 		wrapper.mouse_entered(func(): events.append("entered"))
 		wrapper.node().mouse_entered.emit()
 		_check("inherited signal tags connect", events == ["pressed", "entered"])
-		var line = sweets.line_edit().text_changed(func(value: String): events.append(value))
+		var line = ui.line_edit().text_changed(func(value: String): events.append(value))
 		line.node().text_changed.emit("typed")
 		_check("signal callback receives native arguments", events.back() == "typed")
 		parent.free()
-	var custom_method = "\tfunc color(value: Color) -> SwColorRect:\n\t\t_control.modulate = value\n\t\treturn self\n"
-	_write(prototype, source.replace("class SwColorRect extends SwControl:\n", "class SwColorRect extends SwControl:\n" + custom_method))
+	_write(prototype, Cases.source(Cases.tag_body(Cases.COLOR_OVERRIDE)))
 	result = _build_candidate(original, prototype, target, classes_path)
 	_check("handwritten setter override compiles", result.error == OK)
 	if result.error == OK:
 		_check("handwritten setter emitted once", result.classes_source.count("func color(") == 1)
 		var parent = Control.new()
-		var sweets = result.validation.new(parent)
-		var wrapper = sweets.color_rect().color(Color.RED)
+		var ui = result.validation.new(parent)
+		var wrapper = ui.color_rect().color(Color.RED)
 		_check("handwritten method takes precedence", wrapper.node().modulate == Color.RED and wrapper.node().color == Color.WHITE)
 		parent.free()
-	var custom_signal = "\tfunc pressed(callable: Callable) -> SwButton:\n\t\t_control.pressed.connect(callable, Object.CONNECT_ONE_SHOT)\n\t\treturn self\n"
-	_write(prototype, source.replace("class SwButton extends SwControl:\n", "class SwButton extends SwControl:\n" + custom_signal))
+	_write(prototype, Cases.source(Cases.tag_body("", Cases.SIGNAL_OVERRIDE)))
 	result = _build_candidate(original, prototype, target, classes_path)
 	_check("handwritten signal override compiles", result.error == OK)
 	if result.error == OK:
-		_check("handwritten signal method emitted once", result.classes_source.count("func pressed(") == 1)
 		var parent = Control.new()
-		var sweets = result.validation.new(parent)
+		var ui = result.validation.new(parent)
 		var events: Array = []
-		var button = sweets.button().pressed(func(): events.append(true))
+		var button = ui.button().pressed(func(): events.append(true))
 		button.node().pressed.emit()
 		button.node().pressed.emit()
 		_check("handwritten signal method takes precedence", events == [true])
 		parent.free()
-	# Store a valid pair, then prove invalid tags leave both outputs untouched.
 	_write(target, original)
 	var initial = Generator._generate_file(target, prototype, classes_path)
 	_check("tag output pair writes successfully", initial.error == OK)
+	if initial.error != OK:
+		return false
 	var saved_target = FileAccess.get_file_as_string(target)
 	var saved_classes = FileAccess.get_file_as_string(classes_path)
 	for invalid_tag in ["missing_property", "missing_signal", "color,", "color; text", "ui"]:
-		_write(prototype, source.replace("#! set color, tooltip_text, color", "#! set " + invalid_tag))
+		_write(prototype, Cases.source(Cases.tag_body("", "", invalid_tag)))
 		result = Generator._generate_file(target, prototype, classes_path)
 		_check("invalid setter tag rejected: " + invalid_tag, result.error != OK)
 		_check("invalid setter tag preserves both outputs", FileAccess.get_file_as_string(target) == saved_target and FileAccess.get_file_as_string(classes_path) == saved_classes)
-	var conflicting = "\tfunc ui():\n\t\treturn self\n"
-	_write(prototype, source.replace("class SwColorRect extends SwControl:\n", "class SwColorRect extends SwControl:\n" + conflicting))
+	_write(prototype, Cases.source(Cases.tag_body(Cases.UI_CONFLICT)))
 	var conflict = Generator._generate_file(target, prototype, classes_path)
 	_check("handwritten ui accessor rejected", conflict.error != OK)
 	_check("conflicting accessor preserves outputs", FileAccess.get_file_as_string(target) == saved_target and FileAccess.get_file_as_string(classes_path) == saved_classes)
-	for file in DirAccess.get_files_at(classes_path.get_base_dir()):
-		DirAccess.remove_absolute(classes_path.get_base_dir().path_join(file))
-	DirAccess.remove_absolute(classes_path.get_base_dir())
-	for file in DirAccess.get_files_at(temp_dir):
-		DirAccess.remove_absolute(temp_dir.path_join(file))
-	DirAccess.remove_absolute(temp_dir)
 	return true
+
+
+static func _workspace(label: String) -> Dictionary:
+	var temp_dir = OS.get_environment("TMPDIR")
+	if temp_dir.is_empty():
+		temp_dir = "/tmp"
+	temp_dir = temp_dir.path_join("sweets_%s_%d" % [label, Time.get_ticks_usec()])
+	_temp_dirs.append(temp_dir)
+	_check("temporary workspace created", DirAccess.make_dir_recursive_absolute(temp_dir) == OK)
+	return {"dir": temp_dir, "target": temp_dir.path_join("sweet_ui.gd"),
+		"prototype": temp_dir.path_join("prototype.gd"), "classes": temp_dir.path_join("gen/sweets_generated.gd")}
+
+
+static func _remove_workspace(path: String) -> void:
+	if not DirAccess.dir_exists_absolute(path):
+		return
+	for dir in DirAccess.get_directories_at(path):
+		_remove_workspace(path.path_join(dir))
+	for file in DirAccess.get_files_at(path):
+		DirAccess.remove_absolute(path.path_join(file))
+	DirAccess.remove_absolute(path)
 
 
 static func _build_candidate(original: String, source_path: String = Generator.SOURCE, target_path: String = Generator.TARGET, classes_path: String = Generator.CLASSES_TARGET) -> Dictionary:

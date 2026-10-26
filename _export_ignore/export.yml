@@ -2,6 +2,10 @@ export_root: "res://addons/sweet_ui/_export_ignore/exports"
 plugin_folder: "SweetUI{{version=res://addons/sweet_ui}}"
 pre_script: ""
 post_script: ""
+test_require: 
+  - @require
+  - "brohd11/godot-gdscript-parser@v0.2.2"
+  - "brohd11/godot-editor-parser@v0.1.0"
 options:
   overwrite: true
   include_uid: true
