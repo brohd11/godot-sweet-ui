@@ -20,7 +20,9 @@ static func run_tests() -> Dictionary:
 	_failures = []
 	_checks = 0
 	_test_runtime()
+	_test_controls()
 	_test_generation()
+	_test_setter_tags()
 	var output: Array = ["Sweets: %d checks, %d failures" % [_checks, _failures.size()]]
 	output.append_array(_failures)
 	return {"result": _failures.size(), "output": output, "completed": true}
@@ -58,12 +60,58 @@ static func _test_runtime() -> void:
 	for property in script.get_script_property_list():
 		if property.name == "inferred_rect":
 			inferred_type = property.class_name
+		if property.name in ["inferred_button", "inferred_label", "inferred_grid"]:
+			var expected = {"inferred_button": "Button", "inferred_label": "Label", "inferred_grid": "GridContainer"}
+			_check("native type inferred for " + str(property.name), property.class_name == expected[property.name])
 	_check("entire fluent chain infers ColorRect", inferred_type == "ColorRect")
 	var fixture = Inference.new()
 	_check("inferred chain executes", fixture.inferred_rect.color == Color.GREEN)
 	fixture.parent.free()
 	parent.free()
 	other_parent.free()
+
+
+static func _test_controls() -> void:
+	var parent = Control.new()
+	var sweets = Sweets.new(parent)
+	var native_types = ["Button", "Label", "LineEdit", "TextEdit", "TextureRect", "ProgressBar",
+		"HBoxContainer", "VBoxContainer", "GridContainer", "MarginContainer", "PanelContainer",
+		"ScrollContainer", "CenterContainer", "HSplitContainer", "VSplitContainer"]
+	for native_type: String in native_types:
+		var wrapper = sweets.call(native_type.to_snake_case())
+		_check("factory constructs and attaches " + native_type, wrapper.node().is_class(native_type) and wrapper.node().get_parent() == parent)
+		_check("inherited setters stay fluent for " + native_type, wrapper.tooltip_text("Preview").custom_minimum_size(Vector2(80, 24)).mouse_filter(Control.MOUSE_FILTER_IGNORE).visible(false) == wrapper)
+		_check("inherited setters apply for " + native_type, wrapper.node().tooltip_text == "Preview" and wrapper.node().custom_minimum_size == Vector2(80, 24) and not wrapper.node().visible)
+	var texture = GradientTexture2D.new()
+	var button = sweets.button().text("Go").icon(texture).toggle_mode(true).button_pressed(true).disabled(true)
+	_check("Button setters", button.node().text == "Go" and button.node().icon == texture and button.node().button_pressed and button.node().disabled)
+	var settings = LabelSettings.new()
+	var label = sweets.label().text("Hello").label_settings(settings).horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER).vertical_alignment(VERTICAL_ALIGNMENT_BOTTOM).autowrap_mode(TextServer.AUTOWRAP_WORD_SMART)
+	_check("Label setters include resource and enums", label.node().text == "Hello" and label.node().label_settings == settings and label.node().horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER and label.node().autowrap_mode == TextServer.AUTOWRAP_WORD_SMART)
+	var line = sweets.line_edit().text("Secret").placeholder_text("Enter text").editable(false).secret(true)
+	_check("LineEdit setters", line.node().text == "Secret" and line.node().placeholder_text == "Enter text" and not line.node().editable and line.node().secret)
+	var text = sweets.text_edit().text("Multiline").placeholder_text("Enter text").editable(false).wrap_mode(TextEdit.LINE_WRAPPING_BOUNDARY)
+	_check("TextEdit setters", text.node().text == "Multiline" and text.node().placeholder_text == "Enter text" and not text.node().editable and text.node().wrap_mode == TextEdit.LINE_WRAPPING_BOUNDARY)
+	var image = sweets.texture_rect().texture(texture).expand_mode(TextureRect.EXPAND_IGNORE_SIZE).stretch_mode(TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
+	_check("TextureRect setters", image.node().texture == texture and image.node().expand_mode == TextureRect.EXPAND_IGNORE_SIZE and image.node().stretch_mode == TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
+	var progress = sweets.progress_bar().min_value(0.0).max_value(200.0).value(50.0).show_percentage(false)
+	_check("inherited Range properties", progress.node().value == 50.0 and progress.node().max_value == 200.0 and not progress.node().show_percentage)
+	var row = sweets.h_box_container().alignment(BoxContainer.ALIGNMENT_CENTER)
+	var column = sweets.v_box_container().alignment(BoxContainer.ALIGNMENT_END)
+	_check("BoxContainer alignment", row.node().alignment == BoxContainer.ALIGNMENT_CENTER and column.node().alignment == BoxContainer.ALIGNMENT_END)
+	_check("GridContainer columns", sweets.grid_container().columns(3).node().columns == 3)
+	var scroll = sweets.scroll_container().follow_focus(true).horizontal_scroll_mode(ScrollContainer.SCROLL_MODE_DISABLED).vertical_scroll_mode(ScrollContainer.SCROLL_MODE_SHOW_ALWAYS).scroll_horizontal(0).scroll_vertical(0)
+	_check("ScrollContainer setters", scroll.node().follow_focus and scroll.node().horizontal_scroll_mode == ScrollContainer.SCROLL_MODE_DISABLED and scroll.node().vertical_scroll_mode == ScrollContainer.SCROLL_MODE_SHOW_ALWAYS)
+	_check("CenterContainer setter", sweets.center_container().use_top_left(true).node().use_top_left)
+	_check("HSplitContainer setters", sweets.h_split_container().split_offset(60).collapsed(true).node().collapsed)
+	_check("VSplitContainer setters", sweets.v_split_container().split_offset(60).collapsed(true).node().collapsed)
+	var signatures: Dictionary = {}
+	for method in label.get_script().get_script_method_list():
+		signatures[method.name] = method
+	_check("string setter argument is typed", signatures.text.args[0].type == TYPE_STRING)
+	_check("global enum setter argument is typed", signatures.horizontal_alignment.args[0].class_name == "HorizontalAlignment")
+	_check("resource setter argument is typed", signatures.label_settings.args[0].class_name == "LabelSettings")
+	parent.free()
 
 
 static func _test_generation() -> void:
@@ -139,7 +187,7 @@ static func _test_generation() -> void:
 	_check("missing template leaves target intact", result.error != OK and FileAccess.get_file_as_string(target) == initial)
 	var override = '\tfunc full_rect() -> SwColorRect:\n\t\t_control.tooltip_text = "SwControl super static -> SwControl:"\n\t\treturn self\n\n'
 	var multiline = '\n\tfunc note(\n\t\tvalue: String = "SwControl -> SwControl:",\n\t) -> SwColorRect:\n\t\t_control.tooltip_text = value\n\t\treturn self\n'
-	_write(prototype, source.replace("class SwColorRect extends SwControl:\n", "class SwColorRect extends SwControl:\n" + override) + multiline)
+	_write(prototype, source.replace("class SwColorRect extends SwControl:\n", "class SwColorRect extends SwControl:\n" + override + multiline))
 	result = Generator.build_candidate(initial, prototype)
 	_check("derived overrides and multiline signatures generate", result.error == OK)
 	if result.error == OK:
@@ -153,7 +201,8 @@ static func _test_generation() -> void:
 		custom_rect.note()
 		_check("signature defaults and string contents preserved", custom_rect.node().tooltip_text == "SwControl -> SwControl:")
 		custom_parent.free()
-	_write(prototype, source.replace("\t\t_control.color = value", "\t\tsuper.full_rect()\n\t\t_control.color = value"))
+	var unsupported = "\tfunc unsupported() -> SwColorRect:\n\t\tsuper.full_rect()\n\t\treturn self\n\n"
+	_write(prototype, source.replace("class SwColorRect extends SwControl:\n", "class SwColorRect extends SwControl:\n" + unsupported))
 	result = Generator._generate_file(target, prototype)
 	_check("unsupported super calls leave target intact", result.error != OK and FileAccess.get_file_as_string(target) == initial)
 	for file in DirAccess.get_files_at(temp_dir):
@@ -203,6 +252,71 @@ static func _test_source_options(original: String, source: String, prototype: St
 			var wrapper = wrapper_type.new(ColorRect.new(), parent)
 			_check("reexported constructor accepts parent", wrapper.node().get_parent() == parent)
 			parent.free()
+
+
+static func _test_setter_tags() -> void:
+	var temp_dir = OS.get_environment("TMPDIR")
+	if temp_dir.is_empty():
+		temp_dir = "/tmp"
+	temp_dir = temp_dir.path_join("sweets_tags_%d" % Time.get_ticks_usec())
+	DirAccess.make_dir_recursive_absolute(temp_dir)
+	var prototype = temp_dir.path_join("prototype.gd")
+	var target = temp_dir.path_join("sweets.gd")
+	var classes_path = temp_dir.path_join("sweets_generated.gd")
+	var original = FileAccess.get_file_as_string(Generator.TARGET)
+	var source = '''extends RefCounted
+# Only genuine class-body comments should be processed.
+#! set missing_root_property
+const NOT_A_TAG = """
+#! set missing_string_property
+"""
+class SwControl:
+	#! set tooltip_text, visible
+	var _control: Control
+	func marker() -> String:
+		#! set missing_function_property
+		return "#! set another_missing_property"
+class SwColorRect extends SwControl:
+	#! set color, tooltip_text, color
+	#! set custom_minimum_size
+	pass #! set missing_inline_property
+'''
+	_write(prototype, source)
+	var result = Generator.build_candidate(original, prototype)
+	_check("class-body tags ignore strings and function bodies", result.error == OK)
+	if result.error == OK:
+		_check("repeated setter tags deduplicate", result.classes_source.count("func color(") == 1)
+		var parent = Control.new()
+		var sweets = result.validation.new(parent)
+		var wrapper = sweets.color_rect().tooltip_text("Inherited").color(Color.GREEN).custom_minimum_size(Vector2(32, 16)).visible(false)
+		_check("inherited and multiple tags remain fluent", wrapper.node().tooltip_text == "Inherited" and wrapper.node().color == Color.GREEN and not wrapper.node().visible and wrapper.node().custom_minimum_size == Vector2(32, 16))
+		_check("method strings preserve tag text", wrapper.marker() == "#! set another_missing_property")
+		parent.free()
+	var custom_method = "\tfunc color(value: Color) -> SwColorRect:\n\t\t_control.modulate = value\n\t\treturn self\n"
+	_write(prototype, source.replace("class SwColorRect extends SwControl:\n", "class SwColorRect extends SwControl:\n" + custom_method))
+	result = Generator.build_candidate(original, prototype)
+	_check("handwritten setter override compiles", result.error == OK)
+	if result.error == OK:
+		_check("handwritten setter emitted once", result.classes_source.count("func color(") == 1)
+		var parent = Control.new()
+		var sweets = result.validation.new(parent)
+		var wrapper = sweets.color_rect().color(Color.RED)
+		_check("handwritten method takes precedence", wrapper.node().modulate == Color.RED and wrapper.node().color == Color.WHITE)
+		parent.free()
+	# Store a valid pair, then prove invalid tags leave both outputs untouched.
+	_write(target, original)
+	var initial = Generator._generate_file(target, prototype)
+	_check("tag output pair writes successfully", initial.error == OK)
+	var saved_target = FileAccess.get_file_as_string(target)
+	var saved_classes = FileAccess.get_file_as_string(classes_path)
+	for invalid_tag in ["missing_property", "color,", "color; text"]:
+		_write(prototype, source.replace("#! set color, tooltip_text, color", "#! set " + invalid_tag))
+		result = Generator._generate_file(target, prototype)
+		_check("invalid setter tag rejected: " + invalid_tag, result.error != OK)
+		_check("invalid setter tag preserves both outputs", FileAccess.get_file_as_string(target) == saved_target and FileAccess.get_file_as_string(classes_path) == saved_classes)
+	for file in DirAccess.get_files_at(temp_dir):
+		DirAccess.remove_absolute(temp_dir.path_join(file))
+	DirAccess.remove_absolute(temp_dir)
 
 
 static func _write(path: String, source: String) -> void:
