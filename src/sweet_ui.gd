@@ -31,8 +31,13 @@ func to_root():
 	_node = _root
 	return self
 
+func add_child(node:Node, parent:Node=null) -> _Generated.SwControl:
+	if not is_instance_valid(parent):
+		parent = _node
+	return _Generated.SwControl.new(node, parent, self)
+
 func spacer(parent: BoxContainer = null, begin:=false):
-	_get_parent(parent).add_spacer(begin)
+	_get_parent(parent).add_spacer(begin).name = "Spacer"
 	return self
 
 func _get_parent(parent:Node):

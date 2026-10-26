@@ -34,6 +34,14 @@ Each script gets an interactive preview with the editor's theme. Saved changes
 rebuild the preview within half a second; the **Reload** icon recreates it manually.
 The dock menu in the same row can move or float the panel.
 
+The **Tree** toggle shows the live preview hierarchy on the left. Drag the divider
+to resize it; visibility and width are shared across tabs and saved with the dock.
+The tree follows children added, removed, renamed, or reparented by preview code.
+Select a node to inspect its live instance, or use its script button to open the
+attached script. Inspector edits affect only that instance and reset on reload.
+The preview panel also exposes `set_tree_side(SIDE_LEFT)` / `set_tree_side(SIDE_RIGHT)`;
+a placement button will be added later.
+
 Scripts can use their normal lifecycle, including without `@tool`:
 
 ```gdscript

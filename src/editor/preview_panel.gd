@@ -9,6 +9,10 @@ var dock_button: Button
 var tabs: TabBarContainer
 var add_button: Button
 var refresh_button: Button
+var tree_button: Button
+var _tree_visible := true
+var _tree_side: Side = SIDE_LEFT
+var _tree_width := 200
 var _poll_timer: Timer
 var _restoring := false
 var _stopped := false
@@ -47,6 +51,14 @@ func _ready() -> void:
 	refresh_button.theme_type_variation = &"FlatButton"
 	refresh_button.pressed.connect(_refresh_selected)
 	header.add_child(refresh_button)
+	tree_button = Button.new()
+	tree_button.text = "Tree"
+	tree_button.tooltip_text = "Show preview node tree"
+	tree_button.theme_type_variation = &"FlatButton"
+	tree_button.toggle_mode = true
+	tree_button.button_pressed = _tree_visible
+	tree_button.toggled.connect(set_tree_visible)
+	header.add_child(tree_button)
 	header.add_child(dock_button)
 	if Engine.is_editor_hint():
 		var editor_theme = EditorInterface.get_editor_theme()
@@ -54,6 +66,8 @@ func _ready() -> void:
 		add_button.icon = editor_theme.get_icon(&"Add", &"EditorIcons")
 		refresh_button.text = ""
 		refresh_button.icon = editor_theme.get_icon(&"Reload", &"EditorIcons")
+		tree_button.text = ""
+		tree_button.icon = editor_theme.get_icon(&"FileTree", &"EditorIcons")
 
 	_poll_timer = Timer.new()
 	_poll_timer.wait_time = 0.5
@@ -67,8 +81,11 @@ func new_tab() -> PreviewHost:
 	if _stopped:
 		return null
 	var host = PreviewHost.new()
+	host.set_tree_layout(_tree_visible, _tree_side, _tree_width)
+	host.tree_width_changed.connect(_on_tree_width_changed)
 	host.name = "New preview"
 	host.set_drag_forwarding(Callable(), _can_drop_script, _drop_script.bind(host))
+	host.node_tree.set_drag_forwarding(Callable(), _can_drop_script, _drop_script.bind(host))
 	tabs.add_tab(host)
 	tabs.set_current_tab(tabs.get_tab_count() - 1)
 	_notify_layout_changed()
@@ -121,11 +138,16 @@ func get_dock_data() -> Dictionary:
 	var paths: Array[String] = []
 	for i in tabs.get_tab_count():
 		paths.append(tabs.get_tab_control(i).script_path)
-	return {"scripts": paths, "selected_tab": tabs.get_tab_bar().current_tab}
+	return {"scripts": paths, "selected_tab": tabs.get_tab_bar().current_tab,
+		"tree_visible": _tree_visible, "tree_side": _tree_side, "tree_width": _tree_width}
 
 
 func set_dock_data(data: Dictionary) -> void:
 	_restoring = true
+	_tree_visible = bool(data.get("tree_visible", true))
+	_tree_side = SIDE_RIGHT if int(data.get("tree_side", SIDE_LEFT)) == SIDE_RIGHT else SIDE_LEFT
+	_tree_width = maxi(int(data.get("tree_width", 200)), PreviewHost.TREE_MIN_WIDTH)
+	tree_button.set_pressed_no_signal(_tree_visible)
 	for i in range(tabs.get_tab_count() - 1, -1, -1):
 		close_tab(i)
 	for path in data.get("scripts", []):
@@ -138,6 +160,29 @@ func set_dock_data(data: Dictionary) -> void:
 		new_tab()
 	tabs.set_current_tab(clampi(int(data.get("selected_tab", 0)), 0, tabs.get_tab_count() - 1))
 	_restoring = false
+
+
+func set_tree_visible(tree_visible: bool) -> void:
+	_tree_visible = tree_visible
+	tree_button.set_pressed_no_signal(tree_visible)
+	_apply_tree_layout()
+
+
+## Placement control is available to callers; its toolbar UI can be added later.
+func set_tree_side(side: Side) -> void:
+	_tree_side = SIDE_RIGHT if side == SIDE_RIGHT else SIDE_LEFT
+	_apply_tree_layout()
+
+
+func _on_tree_width_changed(width: int) -> void:
+	_tree_width = width
+	_apply_tree_layout()
+
+
+func _apply_tree_layout() -> void:
+	for i in tabs.get_tab_count():
+		tabs.get_tab_control(i).set_tree_layout(_tree_visible, _tree_side, _tree_width)
+	_notify_layout_changed()
 
 
 func clean_up() -> void:

@@ -9,14 +9,50 @@ class SwControl extends RefCounted:
 	var _control: Control
 
 	func expand(v := true, h := true) -> SwControl:
-		if v:
-			_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		if h:
-			_control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if v: _control.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		if h: _control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		return self
-
+	
+	func expandv() -> SwControl:
+		_control.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		return self
+	
+	func expandh() -> SwControl:
+		_control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		return self
+	
+	func shrink(v := true, h := true) -> SwControl:
+		if v: _control.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		if h: _control.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		return self
+	
+	func shrinkv() -> SwControl:
+		_control.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		return self
+	
+	func shrinkh() -> SwControl:
+		_control.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		return self
+	
+	func size_flags(v:Control.SizeFlags=Control.SIZE_EXPAND_FILL, h:Control.SizeFlags=Control.SIZE_EXPAND_FILL) -> SwControl:
+		_control.size_flags_vertical = v
+		_control.size_flags_horizontal = h
+		return self
+	
+	func layout(anch:Control.LayoutPreset) -> SwControl:
+		_control.set_anchors_and_offsets_preset(anch)
+		return self
+	
 	func full_rect() -> SwControl:
 		_control.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		return self
+	
+	func name(_name) -> SwControl:
+		_control.name = _name
+		return self
+	
+	func add_child(node:Node) -> SwControl:
+		_control.add_child(node)
 		return self
 
 
