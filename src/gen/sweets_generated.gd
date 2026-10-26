@@ -4,15 +4,18 @@ extends RefCounted
 
 class SwButton extends RefCounted:
 	var _control: Button
-
-
-	func _init(control: Button, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> Button:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: Button, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwButton:
@@ -80,15 +83,18 @@ class SwButton extends RefCounted:
 
 class SwCenterContainer extends RefCounted:
 	var _control: CenterContainer
-
-
-	func _init(control: CenterContainer, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> CenterContainer:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: CenterContainer, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwCenterContainer:
@@ -131,15 +137,18 @@ class SwCenterContainer extends RefCounted:
 
 class SwColorRect extends RefCounted:
 	var _control: ColorRect
-
-
-	func _init(control: ColorRect, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> ColorRect:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: ColorRect, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwColorRect:
@@ -182,15 +191,18 @@ class SwColorRect extends RefCounted:
 
 class SwControl extends RefCounted:
 	var _control: Control
-
-
-	func _init(control: Control, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> Control:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: Control, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwControl:
@@ -228,15 +240,18 @@ class SwControl extends RefCounted:
 
 class SwGridContainer extends RefCounted:
 	var _control: GridContainer
-
-
-	func _init(control: GridContainer, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> GridContainer:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: GridContainer, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwGridContainer:
@@ -279,15 +294,18 @@ class SwGridContainer extends RefCounted:
 
 class SwHBoxContainer extends RefCounted:
 	var _control: HBoxContainer
-
-
-	func _init(control: HBoxContainer, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> HBoxContainer:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: HBoxContainer, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwHBoxContainer:
@@ -330,15 +348,18 @@ class SwHBoxContainer extends RefCounted:
 
 class SwHSplitContainer extends RefCounted:
 	var _control: HSplitContainer
-
-
-	func _init(control: HSplitContainer, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> HSplitContainer:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: HSplitContainer, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwHSplitContainer:
@@ -386,15 +407,18 @@ class SwHSplitContainer extends RefCounted:
 
 class SwLabel extends RefCounted:
 	var _control: Label
-
-
-	func _init(control: Label, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> Label:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: Label, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwLabel:
@@ -457,15 +481,18 @@ class SwLabel extends RefCounted:
 
 class SwLineEdit extends RefCounted:
 	var _control: LineEdit
-
-
-	func _init(control: LineEdit, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> LineEdit:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: LineEdit, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwLineEdit:
@@ -523,15 +550,18 @@ class SwLineEdit extends RefCounted:
 
 class SwMarginContainer extends RefCounted:
 	var _control: MarginContainer
-
-
-	func _init(control: MarginContainer, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> MarginContainer:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: MarginContainer, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwMarginContainer:
@@ -581,15 +611,18 @@ class SwMarginContainer extends RefCounted:
 
 class SwPanelContainer extends RefCounted:
 	var _control: PanelContainer
-
-
-	func _init(control: PanelContainer, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> PanelContainer:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: PanelContainer, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwPanelContainer:
@@ -627,15 +660,18 @@ class SwPanelContainer extends RefCounted:
 
 class SwProgressBar extends RefCounted:
 	var _control: ProgressBar
-
-
-	func _init(control: ProgressBar, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> ProgressBar:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: ProgressBar, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwProgressBar:
@@ -693,15 +729,18 @@ class SwProgressBar extends RefCounted:
 
 class SwScrollContainer extends RefCounted:
 	var _control: ScrollContainer
-
-
-	func _init(control: ScrollContainer, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> ScrollContainer:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: ScrollContainer, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwScrollContainer:
@@ -764,15 +803,18 @@ class SwScrollContainer extends RefCounted:
 
 class SwTextEdit extends RefCounted:
 	var _control: TextEdit
-
-
-	func _init(control: TextEdit, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> TextEdit:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: TextEdit, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwTextEdit:
@@ -830,15 +872,18 @@ class SwTextEdit extends RefCounted:
 
 class SwTextureRect extends RefCounted:
 	var _control: TextureRect
-
-
-	func _init(control: TextureRect, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> TextureRect:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: TextureRect, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwTextureRect:
@@ -891,15 +936,18 @@ class SwTextureRect extends RefCounted:
 
 class SwVBoxContainer extends RefCounted:
 	var _control: VBoxContainer
-
-
-	func _init(control: VBoxContainer, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> VBoxContainer:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: VBoxContainer, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwVBoxContainer:
@@ -942,15 +990,18 @@ class SwVBoxContainer extends RefCounted:
 
 class SwVSplitContainer extends RefCounted:
 	var _control: VSplitContainer
-
-
-	func _init(control: VSplitContainer, parent: Node) -> void:
-		_control = control
-		parent.add_child(control)
-
-
+	var _ui:SweetUI
+	
 	func node() -> VSplitContainer:
 		return _control
+	
+	func ui() -> SweetUI:
+		return _ui
+	func _init(control: VSplitContainer, parent: Node, ui:SweetUI) -> void:
+		_control = control
+		parent.add_child(control)
+		_ui = ui
+	
 
 
 	func expand(v := true, h := true) -> SwVSplitContainer:

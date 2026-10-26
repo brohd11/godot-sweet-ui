@@ -16,8 +16,11 @@ sweets.button(column).text("Apply").disabled(false).pressed(func(): print("Apply
 
 `SweetUI.new(parent)` requires a parent node. `control()` and `color_rect()` create
 and attach one native node, then return a RefCounted wrapper. Their optional parent
-argument overrides the default parent. Wrapper constructors require both an existing
-native control and a parent, and call `parent.add_child(control)` directly.
+argument overrides the default parent. Wrapper constructors take an existing native
+control, its parent, and the owning `SweetUI` instance:
+`SwColorRect.new(control, parent, ui)`. They call
+`parent.add_child(control)` directly. `wrapper.ui()` returns that same typed owner,
+so chains can resume building controls: `ui.label().text("Title").ui().button()`.
 Callers must supply valid parents; invalid parents surface normal Godot errors.
 
 Alongside Control and ColorRect, Sweet UI includes Button, Label, LineEdit, TextEdit,
@@ -119,7 +122,7 @@ methods are ignored. Unknown members or non-writable properties reject generatio
 either runtime file is changed.
 
 Prototypes contain operation methods over `_control`; constructors and typed
-`node()` accessors are generated. Additional state, prototype constants, static
+`node()` / `ui()` accessors are generated. Additional state, prototype constants, static
 methods, and `super` calls are unsupported. Derived methods replace inherited ones.
 
 Run the package's checks with `test sweet_ui` in Editor Console, or headlessly:

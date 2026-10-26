@@ -3,10 +3,13 @@ extends RefCounted
 
 const EDITOR_META = &"ui_editor"
 
+var _root: Node
 var _node: Node
+var _rebase:bool = false
 
 
 func _init(node: Node) -> void:
+	_root = node
 	_node = node
 
 
@@ -20,6 +23,25 @@ static func is_editor(node: Node) -> bool:
 		node = node.get_parent()
 	return false
 
+func rebase(node:Node):
+	_node = node
+	return self
+
+func to_root():
+	_node = _root
+	return self
+
+func spacer(parent: BoxContainer = null, begin:=false):
+	_get_parent(parent).add_spacer(begin)
+	return self
+
+func _get_parent(parent:Node):
+	if is_instance_valid(parent):
+		if _rebase:
+			_node = parent
+		return parent
+	return _node
+
 
 ### GENERATED START
 const _Generated = preload("res://addons/sweet_ui/src/gen/sweets_generated.gd")
@@ -29,102 +51,102 @@ const _Generated = preload("res://addons/sweet_ui/src/gen/sweets_generated.gd")
 func button(parent: Node = null) -> _Generated.SwButton:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwButton.new(Button.new(), parent)
+	return _Generated.SwButton.new(Button.new(), parent, self)
 
 
 func center_container(parent: Node = null) -> _Generated.SwCenterContainer:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwCenterContainer.new(CenterContainer.new(), parent)
+	return _Generated.SwCenterContainer.new(CenterContainer.new(), parent, self)
 
 
 func color_rect(parent: Node = null) -> _Generated.SwColorRect:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwColorRect.new(ColorRect.new(), parent)
+	return _Generated.SwColorRect.new(ColorRect.new(), parent, self)
 
 
 func control(parent: Node = null) -> _Generated.SwControl:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwControl.new(Control.new(), parent)
+	return _Generated.SwControl.new(Control.new(), parent, self)
 
 
 func grid_container(parent: Node = null) -> _Generated.SwGridContainer:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwGridContainer.new(GridContainer.new(), parent)
+	return _Generated.SwGridContainer.new(GridContainer.new(), parent, self)
 
 
 func h_box_container(parent: Node = null) -> _Generated.SwHBoxContainer:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwHBoxContainer.new(HBoxContainer.new(), parent)
+	return _Generated.SwHBoxContainer.new(HBoxContainer.new(), parent, self)
 
 
 func h_split_container(parent: Node = null) -> _Generated.SwHSplitContainer:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwHSplitContainer.new(HSplitContainer.new(), parent)
+	return _Generated.SwHSplitContainer.new(HSplitContainer.new(), parent, self)
 
 
 func label(parent: Node = null) -> _Generated.SwLabel:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwLabel.new(Label.new(), parent)
+	return _Generated.SwLabel.new(Label.new(), parent, self)
 
 
 func line_edit(parent: Node = null) -> _Generated.SwLineEdit:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwLineEdit.new(LineEdit.new(), parent)
+	return _Generated.SwLineEdit.new(LineEdit.new(), parent, self)
 
 
 func margin_container(parent: Node = null) -> _Generated.SwMarginContainer:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwMarginContainer.new(MarginContainer.new(), parent)
+	return _Generated.SwMarginContainer.new(MarginContainer.new(), parent, self)
 
 
 func panel_container(parent: Node = null) -> _Generated.SwPanelContainer:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwPanelContainer.new(PanelContainer.new(), parent)
+	return _Generated.SwPanelContainer.new(PanelContainer.new(), parent, self)
 
 
 func progress_bar(parent: Node = null) -> _Generated.SwProgressBar:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwProgressBar.new(ProgressBar.new(), parent)
+	return _Generated.SwProgressBar.new(ProgressBar.new(), parent, self)
 
 
 func scroll_container(parent: Node = null) -> _Generated.SwScrollContainer:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwScrollContainer.new(ScrollContainer.new(), parent)
+	return _Generated.SwScrollContainer.new(ScrollContainer.new(), parent, self)
 
 
 func text_edit(parent: Node = null) -> _Generated.SwTextEdit:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwTextEdit.new(TextEdit.new(), parent)
+	return _Generated.SwTextEdit.new(TextEdit.new(), parent, self)
 
 
 func texture_rect(parent: Node = null) -> _Generated.SwTextureRect:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwTextureRect.new(TextureRect.new(), parent)
+	return _Generated.SwTextureRect.new(TextureRect.new(), parent, self)
 
 
 func v_box_container(parent: Node = null) -> _Generated.SwVBoxContainer:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwVBoxContainer.new(VBoxContainer.new(), parent)
+	return _Generated.SwVBoxContainer.new(VBoxContainer.new(), parent, self)
 
 
 func v_split_container(parent: Node = null) -> _Generated.SwVSplitContainer:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwVSplitContainer.new(VSplitContainer.new(), parent)
+	return _Generated.SwVSplitContainer.new(VSplitContainer.new(), parent, self)
 
 ### GENERATED END

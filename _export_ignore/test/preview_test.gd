@@ -8,14 +8,22 @@ const REQUIRED = "res://addons/sweet_ui/_export_ignore/test/fixtures/required_ar
 
 static var _failures: Array[String]
 static var _checks: int
+static var _viewport: SubViewport
 
 
 static func run_tests() -> Dictionary:
 	_failures = []
 	_checks = 0
+	var tree = Engine.get_main_loop() as SceneTree
+	_viewport = SubViewport.new()
+	_viewport.size = Vector2i(800, 600)
+	_viewport.gui_disable_input = true
+	tree.root.add_child(_viewport)
 	_test_context()
 	await _test_tabs_and_lifecycle()
 	await _test_saved_changes()
+	_viewport.free()
+	_viewport = null
 	var output: Array = ["Sweet UI: %d checks, %d failures" % [_checks, _failures.size()]]
 	output.append_array(_failures)
 	return {"result": _failures.size(), "output": output, "completed": true}
@@ -38,7 +46,7 @@ static func _test_context() -> void:
 static func _test_tabs_and_lifecycle() -> void:
 	var tree = Engine.get_main_loop() as SceneTree
 	var panel = PreviewPanel.new()
-	tree.root.add_child(panel)
+	_viewport.add_child(panel)
 	_check("starts with an empty preview tab", panel.tabs.get_tab_count() == 1)
 	_check("empty tab disables Refresh", panel.refresh_button.disabled)
 	var header = panel.tabs.get_tab_bar_hbox()
@@ -96,7 +104,7 @@ static func _test_tabs_and_lifecycle() -> void:
 	panel.tabs.get_tab_bar().active_tab_rearranged.emit(0)
 	_check("tab order follows rearrangement", panel.get_dock_data().scripts == [REQUIRED, BASIC])
 	var parent = Control.new()
-	tree.root.add_child(parent)
+	_viewport.add_child(parent)
 	panel.reparent(parent)
 	await tree.process_frame
 	_check("redocking keeps polling active", not panel._poll_timer.is_stopped())
@@ -113,7 +121,7 @@ static func _test_tabs_and_lifecycle() -> void:
 	_check("cleanup stops polling and pending builds", panel._poll_timer.is_stopped() and remaining.preview == null)
 	parent.free()
 	var empty_panel = PreviewPanel.new()
-	tree.root.add_child(empty_panel)
+	_viewport.add_child(empty_panel)
 	empty_panel.close_tab(0)
 	_check("closing last tab leaves a fresh empty tab", empty_panel.tabs.get_tab_count() == 1 and empty_panel.tabs.get_current_tab_control().script_path.is_empty())
 	empty_panel.clean_up()
@@ -129,7 +137,7 @@ static func _test_saved_changes() -> void:
 	var host = Host.new()
 	host.script_path = path
 	_write(path, "extends Label\nfunc _ready():\n\ttext = \"before\"\n")
-	tree.root.add_child(host)
+	_viewport.add_child(host)
 	await tree.process_frame
 	_check("saved source builds", is_instance_valid(host.preview) and host.preview.text == "before")
 	var before = host.preview
