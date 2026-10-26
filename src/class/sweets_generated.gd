@@ -6,8 +6,9 @@ class SwColorRect extends RefCounted:
 	var _control: ColorRect
 
 
-	func _init(control: ColorRect) -> void:
+	func _init(control: ColorRect, parent: Node) -> void:
 		_control = control
+		parent.add_child(control)
 
 
 	func node() -> ColorRect:
@@ -36,8 +37,9 @@ class SwControl extends RefCounted:
 	var _control: Control
 
 
-	func _init(control: Control) -> void:
+	func _init(control: Control, parent: Node) -> void:
 		_control = control
+		parent.add_child(control)
 
 
 	func node() -> Control:

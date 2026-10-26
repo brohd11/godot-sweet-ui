@@ -1,6 +1,7 @@
 extends RefCounted
 
 const Sweets = preload("res://addons/code_ui/src/class/sweets.gd")
+const Wrappers = preload("res://addons/code_ui/src/class/sweets_generated.gd")
 const Generator = preload("res://addons/code_ui/_export_ignore/generate/sweets_gen.gd")
 const Inference = preload("res://addons/code_ui/_export_ignore/test/fixtures/sweets_inference.gd")
 
@@ -40,22 +41,18 @@ static func _test_runtime() -> void:
 	_check("full rect applied", wrapper.node().anchor_right == 1.0 and wrapper.node().anchor_bottom == 1.0)
 	var explicit = sweets.color_rect(other_parent)
 	_check("explicit parent overrides default", explicit.node().get_parent() == other_parent)
-	var detached = Sweets.new().control()
-	_check("missing parent leaves node unattached", detached.node().get_parent() == null)
-	detached.expand(false, true)
-	_check("expand flags preserve unselected axis", detached.node().size_flags_vertical == Control.SIZE_FILL)
-	detached.node().free()
-	var created = sweets.create(HBoxContainer)
-	_check("generic creation preserved", created is HBoxContainer and created.get_parent() == parent)
-	_check("general full_rect helper preserved", sweets.full_rect(created) == sweets and created.anchor_right == 1.0)
+	var control = sweets.control().expand(false, true)
+	_check("expand flags preserve unselected axis", control.node().size_flags_vertical == Control.SIZE_FILL)
 	CountedRect.created = 0
-	var dynamic = sweets.ins(CountedRect)
-	_check("dynamic wrapper creates node once", CountedRect.created == 1)
-	_check("dynamic wrapper uses original instance", dynamic is Sweets.SwColorRect and dynamic.node().get_script() == CountedRect)
-	_check("dynamic wrapper uses default parent", dynamic.node().get_parent() == parent)
 	node_count = Node.get_orphan_node_ids().size()
-	_check("unsupported dynamic class rejected", sweets.ins(Node2D) == null)
-	_check("unsupported dynamic node freed", Node.get_orphan_node_ids().size() == node_count)
+	var direct = Wrappers.SwColorRect.new(CountedRect.new(), other_parent)
+	_check("direct construction allocates exactly one node", CountedRect.created == 1 and Node.get_orphan_node_ids().size() == node_count + 1)
+	_check("direct wrapper keeps original instance", direct.node().get_script() == CountedRect)
+	_check("direct constructor attaches to parent", direct.node().get_parent() == other_parent)
+	var wrapper_script: GDScript = Wrappers.SwControl
+	for method in wrapper_script.get_script_method_list():
+		if method.name == &"_init":
+			_check("direct constructor requires both arguments", method.args.size() == 2 and method.default_args.is_empty())
 	var inferred_type = ""
 	var script: GDScript = Inference
 	for property in script.get_script_property_list():
@@ -64,7 +61,7 @@ static func _test_runtime() -> void:
 	_check("entire fluent chain infers ColorRect", inferred_type == "ColorRect")
 	var fixture = Inference.new()
 	_check("inferred chain executes", fixture.inferred_rect.color == Color.GREEN)
-	fixture.inferred_rect.free()
+	fixture.parent.free()
 	parent.free()
 	other_parent.free()
 
@@ -77,7 +74,12 @@ static func _test_generation() -> void:
 		_failures.append(str(result.get("message", "Generation failed")))
 		return
 	_check("wrapper bodies live in separate generated file", not result.source.contains("class SwColorRect") and result.classes_source.contains("class SwColorRect"))
-	_check("Sweets reexports generated wrapper classes", result.source.contains("const SwColorRect = _Generated.SwColorRect"))
+	_check("reexports disabled by default", not result.source.contains("const SwColorRect ="))
+	_check("disabled reexports qualify factory return and constructor", result.source.contains("-> _Generated.SwColorRect:") and result.source.contains("return _Generated.SwColorRect.new(ColorRect.new(), parent)"))
+	_check("unused runtime map removed", not result.source.contains("_MAP"))
+	_check("attachment helper removed", not result.classes_source.contains("_Helpers") and not result.classes_source.contains("func _add_child"))
+	_check("constructors attach directly", result.classes_source.contains("parent.add_child(control)"))
+	_check("factory uses required default parent directly", result.source.contains("parent = _node\n") and not result.source.contains("else null"))
 	_check("generated wrapper file matches prototypes", FileAccess.get_file_as_string(result.classes_path) == result.classes_source)
 	var source = FileAccess.get_file_as_string(Generator.SOURCE)
 	var temp_dir = OS.get_environment("TMPDIR")
@@ -88,6 +90,7 @@ static func _test_generation() -> void:
 	var target = temp_dir.path_join("sweets.gd")
 	var prototype = temp_dir.path_join("prototype.gd")
 	var classes_path = temp_dir.path_join("sweets_generated.gd")
+	_test_source_options(original, source, prototype)
 	var prefix = "## Handwritten prefix with trailing spaces.  \n" + original.left(original.find(Generator.START))
 	var suffix = '\nconst HANDWRITTEN_AFTER = "preserve this"\n'
 	var initial = prefix + Generator.START + "\n# stale generated content\n" + Generator.END + suffix
@@ -131,7 +134,7 @@ static func _test_generation() -> void:
 	_write(target, initial)
 	result = Generator._generate_file(target, temp_dir.path_join("absent.gd"))
 	_check("missing prototypes leave target intact", result.error != OK and FileAccess.get_file_as_string(target) == initial)
-	_write(prototype, source.replace('"SwColorRect": {"node": "ColorRect"', '"MissingPrototype": {"node": "ColorRect"'))
+	_write(prototype, source.replace("const TYPES = {}", 'const TYPES = {"SwMissing": {"node": "ColorRect"}}'))
 	result = Generator._generate_file(target, prototype)
 	_check("missing template leaves target intact", result.error != OK and FileAccess.get_file_as_string(target) == initial)
 	var override = '\tfunc full_rect() -> SwColorRect:\n\t\t_control.tooltip_text = "SwControl super static -> SwControl:"\n\t\treturn self\n\n'
@@ -142,19 +145,64 @@ static func _test_generation() -> void:
 	if result.error == OK:
 		var compiled: GDScript = result.validation
 		_check("custom generated source compiles", compiled.get_script_method_list().any(func(method): return method.name == &"color_rect"))
-		var custom = compiled.new()
+		var custom_parent = Control.new()
+		var custom = compiled.new(custom_parent)
 		var custom_rect = custom.color_rect()
 		custom_rect.full_rect()
 		_check("derived operation overrides inherited body", custom_rect.node().tooltip_text == "SwControl super static -> SwControl:")
 		custom_rect.note()
 		_check("signature defaults and string contents preserved", custom_rect.node().tooltip_text == "SwControl -> SwControl:")
-		custom_rect.node().free()
-	_write(prototype, source.replace("\t\t(_control as ColorRect).color = value", "\t\tsuper.full_rect()\n\t\t(_control as ColorRect).color = value"))
+		custom_parent.free()
+	_write(prototype, source.replace("\t\t_control.color = value", "\t\tsuper.full_rect()\n\t\t_control.color = value"))
 	result = Generator._generate_file(target, prototype)
 	_check("unsupported super calls leave target intact", result.error != OK and FileAccess.get_file_as_string(target) == initial)
 	for file in DirAccess.get_files_at(temp_dir):
 		DirAccess.remove_absolute(temp_dir.path_join(file))
 	DirAccess.remove_absolute(temp_dir)
+
+
+static func _test_source_options(original: String, source: String, prototype: String) -> void:
+	var inferred = source.replace("const TYPES = {}\n", "").replace("const RE_EXPORT = false\n", "")
+	_write(prototype, inferred)
+	var result = Generator.build_candidate(original, prototype)
+	_check("catalog and reexport settings are optional", result.error == OK)
+	if result.error == OK:
+		_check("prototype names infer native and snake_case factory", result.source.contains("func color_rect(") and result.source.contains("ColorRect.new()"))
+	_write(prototype, source.replace("const TYPES = {}", 'const TYPES = {"SwColorRect": {"factory": "rectangle"}}'))
+	result = Generator.build_candidate(original, prototype)
+	_check("factory-only override preserves inferred native type", result.error == OK and result.source.contains("func rectangle(") and result.source.contains("ColorRect.new()"))
+	_write(prototype, source.replace("SwColorRect", "SwRect").replace("const TYPES = {}", 'const TYPES = {"SwRect": {"node": "ColorRect"}}'))
+	result = Generator.build_candidate(original, prototype)
+	_check("native-only override preserves inferred factory name", result.error == OK and result.source.contains("func rect(") and result.source.contains("ColorRect.new()"))
+	for bad_source in [source.replace("SwColorRect", "SwMissing"), source.replace("const TYPES = {}", 'const TYPES = {"SwColorRect": {"factory": "control"}}')]:
+		_write(prototype, bad_source)
+		result = Generator.build_candidate(original, prototype)
+		_check("unresolved types and factory conflicts rejected", result.error != OK)
+	var with_inference = original.replace("var _node: Node", "var _node: Node\nvar probe_parent := Control.new()\nvar mode_inferred := color_rect(probe_parent).expand().full_rect().color(Color.GREEN).node()")
+	for enabled in [false, true]:
+		_write(prototype, source.replace("const RE_EXPORT = false", "const RE_EXPORT = " + str(enabled).to_lower()))
+		result = Generator.build_candidate(with_inference, prototype)
+		_check("reexport mode compiles: " + str(enabled), result.error == OK)
+		if result.error != OK:
+			continue
+		var compiled: GDScript = result.validation
+		_check("alias presence matches reexport setting", compiled.get_script_constant_map().has("SwColorRect") == enabled)
+		var inferred_type = ""
+		for property in compiled.get_script_property_list():
+			if property.name == "mode_inferred":
+				inferred_type = property.class_name
+		_check("fluent inference preserved in both reexport modes", inferred_type == "ColorRect")
+		var default_parent = Control.new()
+		var sweets = compiled.new(default_parent)
+		_check("fluent chain runs in both reexport modes", sweets.mode_inferred.color == Color.GREEN)
+		sweets.probe_parent.free()
+		default_parent.free()
+		if enabled:
+			var parent = Control.new()
+			var wrapper_type = compiled.get_script_constant_map().SwColorRect
+			var wrapper = wrapper_type.new(ColorRect.new(), parent)
+			_check("reexported constructor accepts parent", wrapper.node().get_parent() == parent)
+			parent.free()
 
 
 static func _write(path: String, source: String) -> void:

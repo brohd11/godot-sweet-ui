@@ -38,23 +38,40 @@ var rect := sweets.color_rect().expand().full_rect().color(Color.GREEN).node()
 # rect is a ColorRect. Pass a parent to color_rect() to override the default.
 ```
 
-`control()` and `color_rect()` create and attach one native node, then return a
-RefCounted wrapper. With no explicit or default parent, the node stays unattached.
-`create(Type, parent)` returns a native node; `ins(Type, parent)` returns a dynamic
-wrapper for supported native types, or null for unsupported types.
+`Sweets.new(parent)` requires a parent node. `control()` and `color_rect()` create
+and attach one native node, then return a RefCounted wrapper. Their optional parent
+argument overrides the Sweets parent. Wrapper constructors require both an existing
+native control and a parent, and call `parent.add_child(control)` directly.
+Callers must supply valid parents; invalid parents surface normal Godot errors.
 
-Edit the prototypes and `TYPES` catalog in
-`_export_ignore/generate/sweets_source.gd`, then run this in Editor Console:
+Edit the prototypes in `_export_ignore/generate/sweets_source.gd`, then run this
+in Editor Console:
 
 ```text
 script SweetsGen call generate
 ```
 
-The generator flattens prototype inheritance and specializes fluent return types.
-All wrapper classes live in `src/class/sweets_generated.gd`. Sweets reexports them
-and contains their typed factories inside its `### GENERATED START` /
-`### GENERATED END` region. The generator validates both outputs before writing
-and skips unchanged files. Keep manual helpers outside the marked region.
+The generator discovers top-level `Sw…` classes: `SwColorRect` becomes the native
+type `ColorRect` and factory `color_rect()`. It flattens prototype inheritance and
+specializes fluent return types. `TYPES` is an optional override dictionary; its
+entries can supply `node`, `factory`, or both without changing the other default:
+
+```gdscript
+const RE_EXPORT = false
+const TYPES = {
+	"SwRect": {"node": "ColorRect"}, # Generates rect().
+	"SwControl": {"factory": "control_node"},
+}
+```
+
+All wrapper classes live in `src/class/sweets_generated.gd`.
+Sweets contains typed factories inside its
+`### GENERATED START` / `### GENERATED END` region. By default, their return types
+and constructors use `_Generated.SwColorRect` directly. Set `RE_EXPORT = true` in
+the prototype source to also expose aliases such as `CodeUI.Sweets.SwColorRect`.
+
+The generator validates both outputs before writing and skips unchanged files.
+Keep manual helpers outside the marked region.
 Generator and prototype files stay out of releases; commit both runtime files
 and preserve their UIDs.
 

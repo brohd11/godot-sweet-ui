@@ -1,9 +1,7 @@
 extends RefCounted
 
-const TYPES = {
-	"SwControl": {"node": "Control", "factory": "control"},
-	"SwColorRect": {"node": "ColorRect", "factory": "color_rect"},
-}
+const RE_EXPORT = false
+const TYPES = {}
 
 
 class SwControl extends RefCounted:
