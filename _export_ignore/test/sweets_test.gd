@@ -1,7 +1,7 @@
 extends RefCounted
 
-const Sweets = preload("res://addons/code_ui/src/class/sweets.gd")
-const Wrappers = preload("res://addons/code_ui/src/class/sweets_generated.gd")
+const Sweets = preload("res://addons/code_ui/src/class/sweets/sweets.gd")
+const Wrappers = preload("res://addons/code_ui/src/class/sweets/sweets_generated.gd")
 const Generator = preload("res://addons/code_ui/_export_ignore/generate/sweets_gen.gd")
 const Inference = preload("res://addons/code_ui/_export_ignore/test/fixtures/sweets_inference.gd")
 

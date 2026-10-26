@@ -5,7 +5,7 @@ const Parser = preload("res://addons/_lib/gdscript_parser/src/gdscript_parser.gd
 const Lexer = preload("res://addons/_lib/gdscript_parser/src/utils/lambda_scanner.gd")
 
 const SOURCE = "res://addons/code_ui/_export_ignore/generate/sweets_source.gd"
-const TARGET = "res://addons/code_ui/src/class/sweets.gd"
+const TARGET = "res://addons/code_ui/src/class/sweets/sweets.gd"
 const START = "### GENERATED START"
 const END = "### GENERATED END"
 

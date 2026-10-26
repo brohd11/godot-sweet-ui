@@ -1,7 +1,7 @@
 class_name CodeUI
 extends RefCounted
 
-const Sweets = preload("res://addons/code_ui/src/class/sweets.gd")
+const Sweets = preload("res://addons/code_ui/src/class/sweets/sweets.gd")
 
 const EDITOR_META = &"ui_editor"
 

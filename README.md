@@ -64,7 +64,7 @@ const TYPES = {
 }
 ```
 
-All wrapper classes live in `src/class/sweets_generated.gd`.
+All wrapper classes live in `src/class/sweets/sweets_generated.gd`.
 Sweets contains typed factories inside its
 `### GENERATED START` / `### GENERATED END` region. By default, their return types
 and constructors use `_Generated.SwColorRect` directly. Set `RE_EXPORT = true` in
