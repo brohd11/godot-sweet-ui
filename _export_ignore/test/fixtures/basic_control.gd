@@ -1,6 +1,6 @@
 extends VBoxContainer
 
-const Context = preload("res://addons/code_ui/src/code_ui.gd")
+const Context = preload("res://addons/sweet_ui/src/sweet_ui.gd")
 
 var context_in_init := false
 var context_in_enter := false
@@ -20,7 +20,7 @@ func _enter_tree() -> void:
 func _ready() -> void:
 	context_in_ready = Context.is_editor(self)
 	var button = Button.new()
-	button.text = "Code UI preview"
+	button.text = "Sweet UI preview"
 	button.pressed.connect(func(): presses += 1)
 	add_child(button)
 	child_context = Context.is_editor(button)

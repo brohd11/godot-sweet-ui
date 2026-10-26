@@ -1,7 +1,7 @@
 extends SceneTree
 
-const Suite = preload("res://addons/code_ui/_export_ignore/test/preview_test.gd")
-const SweetsSuite = preload("res://addons/code_ui/_export_ignore/test/sweets_test.gd")
+const Suite = preload("res://addons/sweet_ui/_export_ignore/test/preview_test.gd")
+const SweetsSuite = preload("res://addons/sweet_ui/_export_ignore/test/sweets_test.gd")
 
 
 func _initialize() -> void:

@@ -1,10 +1,10 @@
 extends RefCounted
 
-const Context = preload("res://addons/code_ui/src/code_ui.gd")
-const PreviewPanel = preload("res://addons/code_ui/src/editor/preview_panel.gd")
-const Host = preload("res://addons/code_ui/src/editor/preview_host.gd")
-const BASIC = "res://addons/code_ui/_export_ignore/test/fixtures/basic_control.gd"
-const REQUIRED = "res://addons/code_ui/_export_ignore/test/fixtures/required_argument.gd"
+const Context = preload("res://addons/sweet_ui/src/sweet_ui.gd")
+const PreviewPanel = preload("res://addons/sweet_ui/src/editor/preview_panel.gd")
+const Host = preload("res://addons/sweet_ui/src/editor/preview_host.gd")
+const BASIC = "res://addons/sweet_ui/_export_ignore/test/fixtures/basic_control.gd"
+const REQUIRED = "res://addons/sweet_ui/_export_ignore/test/fixtures/required_argument.gd"
 
 static var _failures: Array[String]
 static var _checks: int
@@ -16,7 +16,7 @@ static func run_tests() -> Dictionary:
 	_test_context()
 	await _test_tabs_and_lifecycle()
 	await _test_saved_changes()
-	var output: Array = ["Code UI: %d checks, %d failures" % [_checks, _failures.size()]]
+	var output: Array = ["Sweet UI: %d checks, %d failures" % [_checks, _failures.size()]]
 	output.append_array(_failures)
 	return {"result": _failures.size(), "output": output, "completed": true}
 
@@ -125,7 +125,7 @@ static func _test_saved_changes() -> void:
 	var temp_dir = OS.get_environment("TMPDIR")
 	if temp_dir.is_empty():
 		temp_dir = "/tmp"
-	var path = temp_dir.path_join("code_ui_preview_%d.gd" % Time.get_ticks_usec())
+	var path = temp_dir.path_join("sweet_ui_preview_%d.gd" % Time.get_ticks_usec())
 	var host = Host.new()
 	host.script_path = path
 	_write(path, "extends Label\nfunc _ready():\n\ttext = \"before\"\n")

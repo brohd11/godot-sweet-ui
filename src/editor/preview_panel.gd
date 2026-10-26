@@ -1,7 +1,7 @@
 extends VBoxContainer
 
 const TabBarContainer = preload("uid://dhohyyr2xlven") #! resolve UIRuntime.Tabs.TabBarContainer
-const PreviewHost = preload("res://addons/code_ui/src/editor/preview_host.gd")
+const PreviewHost = preload("res://addons/sweet_ui/src/editor/preview_host.gd")
 
 signal layout_changed
 
@@ -18,7 +18,7 @@ func _init() -> void:
 	custom_minimum_size = Vector2(260, 280)
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 	dock_button = Button.new()
-	dock_button.tooltip_text = "Move or float Code UI"
+	dock_button.tooltip_text = "Move or float Sweet UI"
 	dock_button.theme_type_variation = &"FlatButton"
 
 

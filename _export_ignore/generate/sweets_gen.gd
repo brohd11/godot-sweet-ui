@@ -5,28 +5,29 @@ const Parser = preload("res://addons/_lib/gdscript_parser/src/gdscript_parser.gd
 const Lexer = preload("res://addons/_lib/gdscript_parser/src/utils/lambda_scanner.gd")
 const TagScanner = preload("res://addons/_lib/editor_parser/src/tag/scanner.gd")
 
-const SOURCE = "res://addons/code_ui/_export_ignore/generate/sweets_source.gd"
-const TARGET = "res://addons/code_ui/src/class/sweets/sweets.gd"
+const SOURCE = "res://addons/sweet_ui/_export_ignore/generate/sweets_source.gd"
+const TARGET = "res://addons/sweet_ui/src/sweet_ui.gd"
+const CLASSES_TARGET = "res://addons/sweet_ui/src/gen/sweets_generated.gd"
 const START = "### GENERATED START"
 const END = "### GENERATED END"
 
 
-static func generate(target_path: String = TARGET, source_path: String = SOURCE) -> Error:
-	var result = _generate_file(target_path, source_path)
+static func generate() -> Error:
+	var result = _generate_file(TARGET)
 	if result.error != OK:
 		push_error(result.message)
 	else:
-		print("Sweets generated: " + target_path if result.changed else "Sweets already up to date.")
+		print("Sweets generated: " + TARGET if result.changed else "Sweets already up to date.")
 	return result.error
 
 
-static func _generate_file(target_path: String, source_path: String = SOURCE) -> Dictionary:
+static func _generate_file(target_path: String, source_path: String = SOURCE, classes_path: String = CLASSES_TARGET) -> Dictionary:
 	var file = FileAccess.open(target_path, FileAccess.READ)
 	if file == null:
 		return _failure("Cannot read Sweets target: " + target_path, FileAccess.get_open_error())
 	var original = file.get_as_text()
 	file.close()
-	var result = build_candidate(original, source_path, target_path)
+	var result = build_candidate(original, source_path, target_path, classes_path)
 	if result.error != OK:
 		return result
 	return _write_outputs({result.classes_path: result.classes_source, target_path: result.source})
@@ -37,6 +38,10 @@ static func _write_outputs(outputs: Dictionary) -> Dictionary:
 	for path: String in outputs:
 		if FileAccess.file_exists(path) and FileAccess.get_file_as_string(path) == outputs[path]:
 			continue
+		var directory_error = DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+		if directory_error != OK:
+			_clear_staging(pending)
+			return _failure("Cannot create generated Sweets directory: " + path.get_base_dir(), directory_error)
 		pending.append(path)
 		var file = FileAccess.open(path + ".sweets.tmp", FileAccess.WRITE)
 		if file == null:
@@ -78,7 +83,7 @@ static func _clear_staging(paths: Array[String]) -> void:
 			DirAccess.remove_absolute(path + ".sweets.tmp")
 
 
-static func build_candidate(original: String, source_path: String = SOURCE, target_path: String = TARGET) -> Dictionary:
+static func build_candidate(original: String, source_path: String = SOURCE, target_path: String = TARGET, classes_path: String = CLASSES_TARGET) -> Dictionary:
 	var marker = RegEx.new()
 	marker.compile("(?m)^### GENERATED (START|END)\\r?$")
 	var matches = marker.search_all(original)
@@ -87,7 +92,6 @@ static func build_candidate(original: String, source_path: String = SOURCE, targ
 	var generated = _build_region(source_path)
 	if generated.error != OK:
 		return generated
-	var classes_path = target_path.get_base_dir().path_join("sweets_generated.gd")
 	var classes = GDScript.new()
 	classes.set_path_cache(classes_path)
 	classes.source_code = generated.classes_source

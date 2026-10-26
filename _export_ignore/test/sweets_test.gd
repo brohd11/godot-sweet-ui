@@ -1,9 +1,9 @@
 extends RefCounted
 
-const Sweets = preload("res://addons/code_ui/src/class/sweets/sweets.gd")
-const Wrappers = preload("res://addons/code_ui/src/class/sweets/sweets_generated.gd")
-const Generator = preload("res://addons/code_ui/_export_ignore/generate/sweets_gen.gd")
-const Inference = preload("res://addons/code_ui/_export_ignore/test/fixtures/sweets_inference.gd")
+const UI = preload("res://addons/sweet_ui/src/sweet_ui.gd")
+const Wrappers = preload("res://addons/sweet_ui/src/gen/sweets_generated.gd")
+const Generator = preload("res://addons/sweet_ui/_export_ignore/generate/sweets_gen.gd")
+const Inference = preload("res://addons/sweet_ui/_export_ignore/test/fixtures/sweets_inference.gd")
 
 static var _failures: Array[String]
 static var _checks: int
@@ -19,11 +19,15 @@ class CountedRect extends ColorRect:
 static func run_tests() -> Dictionary:
 	_failures = []
 	_checks = 0
+	var original_target = FileAccess.get_file_as_string(Generator.TARGET)
+	var original_classes = FileAccess.get_file_as_string(Generator.CLASSES_TARGET)
 	_test_runtime()
 	_test_controls()
 	_test_generation()
 	_test_setter_tags()
-	var output: Array = ["Sweets: %d checks, %d failures" % [_checks, _failures.size()]]
+	_check("tests preserve production entry script", FileAccess.get_file_as_string(Generator.TARGET) == original_target)
+	_check("tests preserve production wrapper classes", FileAccess.get_file_as_string(Generator.CLASSES_TARGET) == original_classes)
+	var output: Array = ["Sweet UI factories: %d checks, %d failures" % [_checks, _failures.size()]]
 	output.append_array(_failures)
 	return {"result": _failures.size(), "output": output, "completed": true}
 
@@ -31,7 +35,7 @@ static func run_tests() -> Dictionary:
 static func _test_runtime() -> void:
 	var parent = Control.new()
 	var other_parent = Control.new()
-	var sweets = Sweets.new(parent)
+	var sweets = UI.new(parent)
 	var node_count = Node.get_orphan_node_ids().size()
 	var wrapper = sweets.color_rect()
 	_check("factory allocates exactly one node", Node.get_orphan_node_ids().size() == node_count + 1)
@@ -73,7 +77,7 @@ static func _test_runtime() -> void:
 
 static func _test_controls() -> void:
 	var parent = Control.new()
-	var sweets = Sweets.new(parent)
+	var sweets = UI.new(parent)
 	var native_types = ["Button", "Label", "LineEdit", "TextEdit", "TextureRect", "ProgressBar",
 		"HBoxContainer", "VBoxContainer", "GridContainer", "MarginContainer", "PanelContainer",
 		"ScrollContainer", "CenterContainer", "HSplitContainer", "VSplitContainer"]
@@ -136,66 +140,69 @@ static func _test_generation() -> void:
 	_check("constructors attach directly", result.classes_source.contains("parent.add_child(control)"))
 	_check("factory uses required default parent directly", result.source.contains("parent = _node\n") and not result.source.contains("else null"))
 	_check("generated wrapper file matches prototypes", FileAccess.get_file_as_string(result.classes_path) == result.classes_source)
+	original = original.replace("class_name SweetUI\n", "")
 	var source = FileAccess.get_file_as_string(Generator.SOURCE)
 	var temp_dir = OS.get_environment("TMPDIR")
 	if temp_dir.is_empty():
 		temp_dir = "/tmp"
 	temp_dir = temp_dir.path_join("sweets_test_%d" % Time.get_ticks_usec())
 	DirAccess.make_dir_recursive_absolute(temp_dir)
-	var target = temp_dir.path_join("sweets.gd")
+	var target = temp_dir.path_join("sweet_ui.gd")
 	var prototype = temp_dir.path_join("prototype.gd")
-	var classes_path = temp_dir.path_join("sweets_generated.gd")
-	_test_source_options(original, source, prototype)
+	var classes_path = temp_dir.path_join("gen/sweets_generated.gd")
+	_test_source_options(original, source, prototype, target, classes_path)
 	var prefix = "## Handwritten prefix with trailing spaces.  \n" + original.left(original.find(Generator.START))
 	var suffix = '\nconst HANDWRITTEN_AFTER = "preserve this"\n'
 	var initial = prefix + Generator.START + "\n# stale generated content\n" + Generator.END + suffix
 	_write(target, initial)
 	_write(target + ".uid", "uid://test_sentinel\n")
-	_write(classes_path + ".uid", "uid://classes_sentinel\n")
-	result = Generator._generate_file(target)
+	_check("wrapper output directory starts absent", not DirAccess.dir_exists_absolute(classes_path.get_base_dir()))
+	result = Generator._generate_file(target, Generator.SOURCE, classes_path)
 	_check("generation replaces stale region", result.error == OK and result.changed)
+	_check("generation creates wrapper output directory", DirAccess.dir_exists_absolute(classes_path.get_base_dir()))
+	_write(classes_path + ".uid", "uid://classes_sentinel\n")
 	var generated = FileAccess.get_file_as_string(target)
 	var generated_classes = FileAccess.get_file_as_string(classes_path)
 	_check("both generated outputs are written", generated_classes.contains("class SwColorRect") and generated.contains("sweets_generated.gd"))
 	_check("handwritten prefix preserved byte for byte", generated.begins_with(prefix + Generator.START + "\n"))
 	_check("handwritten suffix preserved byte for byte", generated.ends_with(Generator.END + suffix))
 	_check("uid preserved", FileAccess.get_file_as_string(target + ".uid") == "uid://test_sentinel\n")
-	_check("generated classes uid preserved", FileAccess.get_file_as_string(classes_path + ".uid") == "uid://classes_sentinel\n")
 	var modified = FileAccess.get_modified_time(target)
-	result = Generator._generate_file(target)
+	result = Generator._generate_file(target, Generator.SOURCE, classes_path)
 	_check("second generation skips writing", result.error == OK and not result.changed)
 	_check("unchanged generation preserves file timestamp", FileAccess.get_modified_time(target) == modified)
 	_check("repeated generation deterministic", generated == FileAccess.get_file_as_string(target))
 	_write(classes_path, generated_classes + "# stale\n")
-	result = Generator._generate_file(target)
-	_check("classes can regenerate without changing Sweets", result.error == OK and result.changed and FileAccess.get_modified_time(target) == modified and FileAccess.get_file_as_string(classes_path) == generated_classes)
+	result = Generator._generate_file(target, Generator.SOURCE, classes_path)
+	_check("classes can regenerate without changing SweetUI", result.error == OK and result.changed and FileAccess.get_modified_time(target) == modified and FileAccess.get_file_as_string(classes_path) == generated_classes)
+	_check("generated classes uid preserved", FileAccess.get_file_as_string(classes_path + ".uid") == "uid://classes_sentinel\n")
 	var crlf = initial.replace("\n", "\r\n")
-	result = Generator.build_candidate(crlf)
+	result = Generator.build_candidate(crlf, Generator.SOURCE, target, classes_path)
 	_check("CRLF handwritten text preserved", result.error == OK and result.source.begins_with(prefix.replace("\n", "\r\n")) and result.source.ends_with(suffix.replace("\n", "\r\n")))
 	if result.error == OK:
-		var again = Generator.build_candidate(result.source)
+		var again = Generator.build_candidate(result.source, Generator.SOURCE, target, classes_path)
 		_check("CRLF generation is idempotent", again.error == OK and again.source == result.source)
 		_check("CRLF generation keeps consistent line endings", not result.source.replace("\r\n", "").contains("\r"))
 	_write(temp_dir.path_join("payload.gd"), "extends RefCounted\nconst VALUE = 42\n")
 	var relative = initial.replace("extends RefCounted\n", 'extends RefCounted\nconst PAYLOAD = preload("./payload.gd")\n')
 	_write(target, relative)
-	result = Generator._generate_file(target)
+	result = Generator._generate_file(target, Generator.SOURCE, classes_path)
 	_check("validation preserves handwritten relative preloads", result.error == OK and FileAccess.get_file_as_string(target).contains('const PAYLOAD = preload("./payload.gd")'))
 	for malformed in [initial.replace(Generator.START, "# missing"), initial.replace(Generator.END, "# missing"), initial + Generator.START + "\n", Generator.END + "\n" + Generator.START]:
 		_write(target, malformed)
-		result = Generator._generate_file(target)
+		result = Generator._generate_file(target, Generator.SOURCE, classes_path)
 		_check("malformed markers rejected without writing", result.error != OK and FileAccess.get_file_as_string(target) == malformed)
 		_check("malformed markers leave generated classes intact", FileAccess.get_file_as_string(classes_path) == generated_classes)
 	_write(target, initial)
-	result = Generator._generate_file(target, temp_dir.path_join("absent.gd"))
+	result = Generator._generate_file(target, temp_dir.path_join("absent.gd"), classes_path)
 	_check("missing prototypes leave target intact", result.error != OK and FileAccess.get_file_as_string(target) == initial)
 	_write(prototype, source.replace("const TYPES = {}", 'const TYPES = {"SwMissing": {"node": "ColorRect"}}'))
-	result = Generator._generate_file(target, prototype)
+	result = Generator._generate_file(target, prototype, classes_path)
 	_check("missing template leaves target intact", result.error != OK and FileAccess.get_file_as_string(target) == initial)
 	var override = '\tfunc full_rect() -> SwColorRect:\n\t\t_control.tooltip_text = "SwControl super static -> SwControl:"\n\t\treturn self\n\n'
 	var multiline = '\n\tfunc note(\n\t\tvalue: String = "SwControl -> SwControl:",\n\t) -> SwColorRect:\n\t\t_control.tooltip_text = value\n\t\treturn self\n'
 	_write(prototype, source.replace("class SwColorRect extends SwControl:\n", "class SwColorRect extends SwControl:\n" + override + multiline))
-	result = Generator.build_candidate(initial, prototype)
+	result = Generator.build_candidate(initial, prototype, target, classes_path)
 	_check("derived overrides and multiline signatures generate", result.error == OK)
 	if result.error == OK:
 		var compiled: GDScript = result.validation
@@ -210,34 +217,37 @@ static func _test_generation() -> void:
 		custom_parent.free()
 	var unsupported = "\tfunc unsupported() -> SwColorRect:\n\t\tsuper.full_rect()\n\t\treturn self\n\n"
 	_write(prototype, source.replace("class SwColorRect extends SwControl:\n", "class SwColorRect extends SwControl:\n" + unsupported))
-	result = Generator._generate_file(target, prototype)
+	result = Generator._generate_file(target, prototype, classes_path)
 	_check("unsupported super calls leave target intact", result.error != OK and FileAccess.get_file_as_string(target) == initial)
+	for file in DirAccess.get_files_at(classes_path.get_base_dir()):
+		DirAccess.remove_absolute(classes_path.get_base_dir().path_join(file))
+	DirAccess.remove_absolute(classes_path.get_base_dir())
 	for file in DirAccess.get_files_at(temp_dir):
 		DirAccess.remove_absolute(temp_dir.path_join(file))
 	DirAccess.remove_absolute(temp_dir)
 
 
-static func _test_source_options(original: String, source: String, prototype: String) -> void:
+static func _test_source_options(original: String, source: String, prototype: String, target: String, classes_path: String) -> void:
 	var inferred = source.replace("const TYPES = {}\n", "").replace("const RE_EXPORT = false\n", "")
 	_write(prototype, inferred)
-	var result = Generator.build_candidate(original, prototype)
+	var result = Generator.build_candidate(original, prototype, target, classes_path)
 	_check("catalog and reexport settings are optional", result.error == OK)
 	if result.error == OK:
 		_check("prototype names infer native and snake_case factory", result.source.contains("func color_rect(") and result.source.contains("ColorRect.new()"))
 	_write(prototype, source.replace("const TYPES = {}", 'const TYPES = {"SwColorRect": {"factory": "rectangle"}}'))
-	result = Generator.build_candidate(original, prototype)
+	result = Generator.build_candidate(original, prototype, target, classes_path)
 	_check("factory-only override preserves inferred native type", result.error == OK and result.source.contains("func rectangle(") and result.source.contains("ColorRect.new()"))
 	_write(prototype, source.replace("SwColorRect", "SwRect").replace("const TYPES = {}", 'const TYPES = {"SwRect": {"node": "ColorRect"}}'))
-	result = Generator.build_candidate(original, prototype)
+	result = Generator.build_candidate(original, prototype, target, classes_path)
 	_check("native-only override preserves inferred factory name", result.error == OK and result.source.contains("func rect(") and result.source.contains("ColorRect.new()"))
 	for bad_source in [source.replace("SwColorRect", "SwMissing"), source.replace("const TYPES = {}", 'const TYPES = {"SwColorRect": {"factory": "control"}}')]:
 		_write(prototype, bad_source)
-		result = Generator.build_candidate(original, prototype)
+		result = Generator.build_candidate(original, prototype, target, classes_path)
 		_check("unresolved types and factory conflicts rejected", result.error != OK)
 	var with_inference = original.replace("var _node: Node", "var _node: Node\nvar probe_parent := Control.new()\nvar mode_inferred := color_rect(probe_parent).expand().full_rect().color(Color.GREEN).node()")
 	for enabled in [false, true]:
 		_write(prototype, source.replace("const RE_EXPORT = false", "const RE_EXPORT = " + str(enabled).to_lower()))
-		result = Generator.build_candidate(with_inference, prototype)
+		result = Generator.build_candidate(with_inference, prototype, target, classes_path)
 		_check("reexport mode compiles: " + str(enabled), result.error == OK)
 		if result.error != OK:
 			continue
@@ -268,9 +278,9 @@ static func _test_setter_tags() -> void:
 	temp_dir = temp_dir.path_join("sweets_tags_%d" % Time.get_ticks_usec())
 	DirAccess.make_dir_recursive_absolute(temp_dir)
 	var prototype = temp_dir.path_join("prototype.gd")
-	var target = temp_dir.path_join("sweets.gd")
-	var classes_path = temp_dir.path_join("sweets_generated.gd")
-	var original = FileAccess.get_file_as_string(Generator.TARGET)
+	var target = temp_dir.path_join("sweet_ui.gd")
+	var classes_path = temp_dir.path_join("gen/sweets_generated.gd")
+	var original = FileAccess.get_file_as_string(Generator.TARGET).replace("class_name SweetUI\n", "")
 	var source = '''extends RefCounted
 # Only genuine class-body comments should be processed.
 #! set missing_root_property
@@ -296,7 +306,7 @@ class SwLineEdit extends SwControl:
 	pass
 '''
 	_write(prototype, source)
-	var result = Generator.build_candidate(original, prototype)
+	var result = Generator.build_candidate(original, prototype, target, classes_path)
 	_check("class-body tags ignore strings and function bodies", result.error == OK)
 	if result.error == OK:
 		_check("repeated setter tags deduplicate", result.classes_source.count("func color(") == 1)
@@ -319,7 +329,7 @@ class SwLineEdit extends SwControl:
 		parent.free()
 	var custom_method = "\tfunc color(value: Color) -> SwColorRect:\n\t\t_control.modulate = value\n\t\treturn self\n"
 	_write(prototype, source.replace("class SwColorRect extends SwControl:\n", "class SwColorRect extends SwControl:\n" + custom_method))
-	result = Generator.build_candidate(original, prototype)
+	result = Generator.build_candidate(original, prototype, target, classes_path)
 	_check("handwritten setter override compiles", result.error == OK)
 	if result.error == OK:
 		_check("handwritten setter emitted once", result.classes_source.count("func color(") == 1)
@@ -330,7 +340,7 @@ class SwLineEdit extends SwControl:
 		parent.free()
 	var custom_signal = "\tfunc pressed(callable: Callable) -> SwButton:\n\t\t_control.pressed.connect(callable, Object.CONNECT_ONE_SHOT)\n\t\treturn self\n"
 	_write(prototype, source.replace("class SwButton extends SwControl:\n", "class SwButton extends SwControl:\n" + custom_signal))
-	result = Generator.build_candidate(original, prototype)
+	result = Generator.build_candidate(original, prototype, target, classes_path)
 	_check("handwritten signal override compiles", result.error == OK)
 	if result.error == OK:
 		_check("handwritten signal method emitted once", result.classes_source.count("func pressed(") == 1)
@@ -344,15 +354,18 @@ class SwLineEdit extends SwControl:
 		parent.free()
 	# Store a valid pair, then prove invalid tags leave both outputs untouched.
 	_write(target, original)
-	var initial = Generator._generate_file(target, prototype)
+	var initial = Generator._generate_file(target, prototype, classes_path)
 	_check("tag output pair writes successfully", initial.error == OK)
 	var saved_target = FileAccess.get_file_as_string(target)
 	var saved_classes = FileAccess.get_file_as_string(classes_path)
 	for invalid_tag in ["missing_property", "missing_signal", "color,", "color; text"]:
 		_write(prototype, source.replace("#! set color, tooltip_text, color", "#! set " + invalid_tag))
-		result = Generator._generate_file(target, prototype)
+		result = Generator._generate_file(target, prototype, classes_path)
 		_check("invalid setter tag rejected: " + invalid_tag, result.error != OK)
 		_check("invalid setter tag preserves both outputs", FileAccess.get_file_as_string(target) == saved_target and FileAccess.get_file_as_string(classes_path) == saved_classes)
+	for file in DirAccess.get_files_at(classes_path.get_base_dir()):
+		DirAccess.remove_absolute(classes_path.get_base_dir().path_join(file))
+	DirAccess.remove_absolute(classes_path.get_base_dir())
 	for file in DirAccess.get_files_at(temp_dir):
 		DirAccess.remove_absolute(temp_dir.path_join(file))
 	DirAccess.remove_absolute(temp_dir)

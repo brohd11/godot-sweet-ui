@@ -1,14 +1,14 @@
 @tool
 extends EditorPlugin
 
-const PreviewPanel = preload("res://addons/code_ui/src/editor/preview_panel.gd")
+const PreviewPanel = preload("res://addons/sweet_ui/src/editor/preview_panel.gd")
 
 var _docks: DockManager.InstanceManager
 var _panel: PreviewPanel
 
 
 func _get_plugin_name() -> String:
-	return "Code UI"
+	return "Sweet UI"
 
 
 func _get_plugin_icon() -> Texture2D:
