@@ -1,10 +1,10 @@
 extends RefCounted
 
-const Context = preload("res://addons/sweet_ui/src/sweet_ui.gd")
+const Context = preload("res://scripts/sweet_ui/generated/sweet_ui.gd")
 const PreviewPanel = preload("res://addons/sweet_ui/src/editor/preview_panel.gd")
 const Host = preload("res://addons/sweet_ui/src/editor/preview_host.gd")
-const BASIC = "res://addons/sweet_ui/_export_ignore/test/fixtures/basic_control.gd"
-const REQUIRED = "res://addons/sweet_ui/_export_ignore/test/fixtures/required_argument.gd"
+const BASIC = "res://addons/sweet_ui/_export_ignore/test/runtime/fixtures/basic_control.gd"
+const REQUIRED = "res://addons/sweet_ui/_export_ignore/test/runtime/fixtures/required_argument.gd"
 
 static var _failures: Array[String]
 static var _checks: int
@@ -22,6 +22,7 @@ static func run_tests() -> Dictionary:
 	_test_context()
 	await _test_tabs_and_lifecycle()
 	await _test_tree_layout()
+	await _test_highlight()
 	await _test_saved_changes()
 	_viewport.free()
 	_viewport = null
@@ -49,9 +50,8 @@ static func _test_tabs_and_lifecycle() -> void:
 	var panel = PreviewPanel.new()
 	_viewport.add_child(panel)
 	_check("starts with an empty preview tab", panel.tabs.get_tab_count() == 1)
-	_check("empty tab disables Refresh", panel.refresh_button.disabled)
 	var header = panel.tabs.get_tab_bar_hbox()
-	_check("Add, Reload and Dock share the tab-bar row", panel.add_button.get_parent() == header and panel.refresh_button.get_parent() == header and panel.dock_button.get_parent() == header)
+	_check("Add, Options and Dock share the tab-bar row", panel.add_button.get_parent() == header and panel.options_button.get_parent() == header and panel.dock_button.get_parent() == header)
 	_check("valid file drop accepted", panel._can_drop_script(Vector2.ZERO, {"type": "files", "files": [BASIC]}))
 	_check("multiple file drop rejected", not panel._can_drop_script(Vector2.ZERO, {"type": "files", "files": [BASIC, REQUIRED]}))
 	_check("unrelated drag rejected", not panel._can_drop_script(Vector2.ZERO, {"type": "nodes", "nodes": []}))
@@ -85,7 +85,7 @@ static func _test_tabs_and_lifecycle() -> void:
 	panel.add_button.pressed.emit()
 	var empty_host = panel.tabs.get_current_tab_control()
 	await tree.process_frame
-	_check("Add opens a selected empty tab", panel.tabs.get_tab_count() == 2 and empty_host.script_path.is_empty() and panel.refresh_button.disabled)
+	_check("Add opens a selected empty tab", panel.tabs.get_tab_count() == 2 and empty_host.script_path.is_empty())
 	_check("empty preview stays idle", empty_host.preview == null and not empty_host.status.text.contains("not found"))
 	panel._drop_script(Vector2.ZERO, {"type": "files", "files": [BASIC]}, empty_host)
 	_check("duplicate drop selects original tab", panel.tabs.get_tab_bar().current_tab == 0 and empty_host.script_path.is_empty())
@@ -147,11 +147,11 @@ static func _test_tree_layout() -> void:
 	await tree.process_frame
 	await tree.process_frame
 	var first = panel.tabs.get_current_tab_control()
-	_check("tree starts visible on the left", first.node_tree.visible and first.split.get_child(0) == first.node_tree and panel.tree_button.button_pressed)
+	_check("tree starts visible on the left", first.node_tree.visible and first.split.get_child(0) == first.node_tree)
 	_check("default tree width is applied (got %s, split %s, offset %s)" % [first.node_tree.size, first.split.size, first.split.split_offset], is_equal_approx(first.node_tree.size.x, 200.0))
 	var second = panel.new_tab()
 	panel.set_tree_visible(false)
-	_check("tree visibility is shared", not first.node_tree.visible and not second.node_tree.visible and not panel.tree_button.button_pressed)
+	_check("tree visibility is shared", not first.node_tree.visible and not second.node_tree.visible)
 	panel.set_tree_visible(true)
 	panel.set_tree_side(SIDE_RIGHT)
 	await tree.process_frame
@@ -183,6 +183,69 @@ static func _test_tree_layout() -> void:
 	_check("preview interaction can add live tree rows", first.node_tree.tree_items.has(child))
 	panel.new_tab()
 	_check("new empty tab has an independent tree", panel.tabs.get_current_tab_control().node_tree.tree_items.is_empty() and first.node_tree.tree_items.has(child))
+	panel.clean_up()
+	panel.free()
+
+
+static func _test_highlight() -> void:
+	var tree = Engine.get_main_loop() as SceneTree
+	var panel = PreviewPanel.new()
+	panel.size = Vector2(800, 500)
+	_viewport.add_child(panel)
+	panel.open_script(BASIC)
+	await tree.process_frame
+	await tree.process_frame
+	var host = panel.tabs.get_current_tab_control()
+	var child = Button.new()
+	child.position = Vector2(30, 20)
+	child.size = Vector2(90, 40)
+	host.preview.add_child(child)
+	await tree.process_frame
+	await tree.process_frame
+	_check("highlight starts hidden", not host.highlight.visible)
+	host.node_tree.object_selected.emit(child)
+	_check("selected control is highlighted on top", host.highlight.visible and host.highlight.get_global_rect().is_equal_approx(child.get_global_rect()) and host.highlight.get_index() == host.canvas.get_child_count() - 1)
+	_check("highlight stays out of the node tree", not host.node_tree.tree_items.has(host.highlight))
+	child.size = Vector2(120, 60)
+	await tree.process_frame
+	_check("highlight follows control layout", host.highlight.get_global_rect().is_equal_approx(child.get_global_rect()))
+	var timer = Timer.new()
+	host.preview.add_child(timer)
+	host.node_tree.object_selected.emit(timer)
+	_check("non-Control selection clears highlight", not host.highlight.visible)
+	host.node_tree.object_selected.emit(child)
+	var second = panel.new_tab()
+	await tree.process_frame
+	_check("highlight hides with its tab", not host.highlight.visible)
+	panel.tabs.set_current_tab(0)
+	await tree.process_frame
+	_check("highlight returns with its tab", host.highlight.visible)
+	panel.set_highlight_selected(false)
+	_check("disabling highlight hides it on every tab", not host.highlight.visible and not second._highlight_enabled)
+	panel.set_highlight_selected(true)
+	_check("re-enabling highlight restores the selection", host.highlight.visible)
+	host.node_tree.object_selected.emit(null)
+	_check("deselection clears highlight", not host.highlight.visible)
+	panel.set_highlight_selected(false)
+	var saved = panel.get_dock_data()
+	panel.set_dock_data(saved)
+	_check("highlight setting round trips", panel.get_dock_data() == saved and not panel.get_dock_data().highlight_selected and not panel.tabs.get_tab_control(0)._highlight_enabled)
+	panel.set_dock_data({"scripts": [BASIC], "selected_tab": 0})
+	_check("legacy dock data enables highlight", panel.get_dock_data().highlight_selected)
+	_check("inspect starts enabled", panel.get_dock_data().inspect_selected and panel.tabs.get_tab_control(0)._inspect_enabled)
+	await tree.process_frame
+	await tree.process_frame
+	host = panel.tabs.get_tab_control(0)
+	host.node_tree.object_selected.emit(host.preview)
+	_check("selection is remembered for inspection", host._selected != null and host._selected.get_ref() == host.preview)
+	second = panel.new_tab()
+	panel.set_inspect_selected(false)
+	_check("disabling inspect reaches every tab", not host._inspect_enabled and not second._inspect_enabled)
+	saved = panel.get_dock_data()
+	panel.set_dock_data(saved)
+	_check("inspect setting round trips", panel.get_dock_data() == saved and not panel.get_dock_data().inspect_selected and not panel.tabs.get_tab_control(0)._inspect_enabled)
+	panel.set_dock_data({"scripts": [BASIC], "selected_tab": 0})
+	_check("legacy dock data enables inspect", panel.get_dock_data().inspect_selected)
 	panel.clean_up()
 	panel.free()
 

@@ -1,18 +1,25 @@
 extends VBoxContainer
 
+const UName = preload("uid://b8sil7xrxxs20") #! resolve UtilR.Strings.UName
+const Placer = preload("uid://cs6pl78crcr0g") #! resolve UtilR.Nodes.PopupMenus.Placer
+const Options = preload("uid://dxdxq2n3imf4q") #! resolve UtilR.Nodes.PopupMenus.Options
 const TabBarContainer = preload("uid://dhohyyr2xlven") #! resolve UIRuntime.Tabs.TabBarContainer
+
 const PreviewHost = preload("res://addons/sweet_ui/src/editor/preview_host.gd")
 
 signal layout_changed
 
 var dock_button: Button
+var popup_placer:Placer
+var options_button:Button
+
 var tabs: TabBarContainer
 var add_button: Button
-var refresh_button: Button
-var tree_button: Button
 var _tree_visible := true
 var _tree_side: Side = SIDE_LEFT
 var _tree_width := 200
+var _highlight_selected := true
+var _inspect_selected := true
 var _poll_timer: Timer
 var _restoring := false
 var _stopped := false
@@ -21,12 +28,12 @@ var _stopped := false
 func _init() -> void:
 	custom_minimum_size = Vector2(260, 280)
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
-	dock_button = Button.new()
-	dock_button.tooltip_text = "Move or float Sweet UI"
-	dock_button.theme_type_variation = &"FlatButton"
-
 
 func _ready() -> void:
+	var ui = SweetUI.new(self)
+	
+	popup_placer = ui.add_node(Placer.new())
+	
 	tabs = TabBarContainer.new()
 	add_child(tabs)
 	var bar = tabs.get_tab_bar()
@@ -38,36 +45,13 @@ func _ready() -> void:
 	bar.set_drag_forwarding(Callable(), _can_drop_on_bar, _drop_on_bar)
 	tabs.tab_changed.connect(_on_tab_changed)
 
-	var header = tabs.get_tab_bar_hbox()
-	add_button = Button.new()
-	add_button.text = "+"
-	add_button.tooltip_text = "New preview tab"
-	add_button.theme_type_variation = &"FlatButton"
-	add_button.pressed.connect(new_tab)
-	header.add_child(add_button)
-	refresh_button = Button.new()
-	refresh_button.text = "Reload"
-	refresh_button.tooltip_text = "Recreate the selected preview from its saved script."
-	refresh_button.theme_type_variation = &"FlatButton"
-	refresh_button.pressed.connect(_refresh_selected)
-	header.add_child(refresh_button)
-	tree_button = Button.new()
-	tree_button.text = "Tree"
-	tree_button.tooltip_text = "Show preview node tree"
-	tree_button.theme_type_variation = &"FlatButton"
-	tree_button.toggle_mode = true
-	tree_button.button_pressed = _tree_visible
-	tree_button.toggled.connect(set_tree_visible)
-	header.add_child(tree_button)
-	header.add_child(dock_button)
-	if Engine.is_editor_hint():
-		var editor_theme = EditorInterface.get_editor_theme()
-		add_button.text = ""
-		add_button.icon = editor_theme.get_icon(&"Add", &"EditorIcons")
-		refresh_button.text = ""
-		refresh_button.icon = editor_theme.get_icon(&"Reload", &"EditorIcons")
-		tree_button.text = ""
-		tree_button.icon = editor_theme.get_icon(&"FileTree", &"EditorIcons")
+	ui.rebase(tabs.get_tab_bar_hbox())
+	add_button = (ui.button().icon(ui.ed_icon(&"Add")).tooltip_text("New preview tab")
+				.theme_type_variation("FlatButton").pressed(new_tab).c())
+	
+	options_button = ui.button().icon(ui.ed_icon(&"TripleBar")).pressed(_on_options_pressed).theme_type_variation("FlatButton").c()
+	dock_button = ui.button().tooltip_text("Move or float").theme_type_variation("FlatButton").c()
+	
 
 	_poll_timer = Timer.new()
 	_poll_timer.wait_time = 0.5
@@ -82,8 +66,10 @@ func new_tab() -> PreviewHost:
 		return null
 	var host = PreviewHost.new()
 	host.set_tree_layout(_tree_visible, _tree_side, _tree_width)
+	host.set_highlight_enabled(_highlight_selected)
+	host.set_inspect_enabled(_inspect_selected)
 	host.tree_width_changed.connect(_on_tree_width_changed)
-	host.name = "New preview"
+	host.name = UName.incremental_name_check_in_nodes("New preview", tabs.get_tab_parent())
 	host.set_drag_forwarding(Callable(), _can_drop_script, _drop_script.bind(host))
 	host.node_tree.set_drag_forwarding(Callable(), _can_drop_script, _drop_script.bind(host))
 	tabs.add_tab(host)
@@ -91,6 +77,15 @@ func new_tab() -> PreviewHost:
 	_notify_layout_changed()
 	return host
 
+func _on_options_pressed():
+	var options = Options.new()
+	if not (tabs.get_tab_count() == 0 or tabs.get_current_tab_control().script_path.is_empty()):
+		options.add_option("Reload", _refresh_selected, ["Reload"])
+	options.add_option("Hide Tree" if _tree_visible else "Show Tree", set_tree_visible.bind(not _tree_visible), ["FileTree"])
+	options.add_radio_option("Highlight Selected", set_highlight_selected.bind(not _highlight_selected), _highlight_selected)
+	options.add_radio_option("Inspect Selected", set_inspect_selected.bind(not _inspect_selected), _inspect_selected)
+	
+	popup_placer.display_on_control(options, options_button)
 
 func open_script(path: String, tab_index := -1) -> void:
 	if _stopped:
@@ -139,7 +134,8 @@ func get_dock_data() -> Dictionary:
 	for i in tabs.get_tab_count():
 		paths.append(tabs.get_tab_control(i).script_path)
 	return {"scripts": paths, "selected_tab": tabs.get_tab_bar().current_tab,
-		"tree_visible": _tree_visible, "tree_side": _tree_side, "tree_width": _tree_width}
+		"tree_visible": _tree_visible, "tree_side": _tree_side, "tree_width": _tree_width,
+		"highlight_selected": _highlight_selected, "inspect_selected": _inspect_selected}
 
 
 func set_dock_data(data: Dictionary) -> void:
@@ -147,7 +143,9 @@ func set_dock_data(data: Dictionary) -> void:
 	_tree_visible = bool(data.get("tree_visible", true))
 	_tree_side = SIDE_RIGHT if int(data.get("tree_side", SIDE_LEFT)) == SIDE_RIGHT else SIDE_LEFT
 	_tree_width = maxi(int(data.get("tree_width", 200)), PreviewHost.TREE_MIN_WIDTH)
-	tree_button.set_pressed_no_signal(_tree_visible)
+	_highlight_selected = bool(data.get("highlight_selected", true))
+	_inspect_selected = bool(data.get("inspect_selected", true))
+
 	for i in range(tabs.get_tab_count() - 1, -1, -1):
 		close_tab(i)
 	for path in data.get("scripts", []):
@@ -162,10 +160,23 @@ func set_dock_data(data: Dictionary) -> void:
 	_restoring = false
 
 
-func set_tree_visible(tree_visible: bool) -> void:
+func set_tree_visible(tree_visible:bool) -> void:
 	_tree_visible = tree_visible
-	tree_button.set_pressed_no_signal(tree_visible)
 	_apply_tree_layout()
+
+
+func set_highlight_selected(enabled: bool) -> void:
+	_highlight_selected = enabled
+	for i in tabs.get_tab_count():
+		tabs.get_tab_control(i).set_highlight_enabled(enabled)
+	_notify_layout_changed()
+
+
+func set_inspect_selected(enabled: bool) -> void:
+	_inspect_selected = enabled
+	for i in tabs.get_tab_count():
+		tabs.get_tab_control(i).set_inspect_enabled(enabled)
+	_notify_layout_changed()
 
 
 ## Placement control is available to callers; its toolbar UI can be added later.
@@ -207,7 +218,6 @@ func _refresh_selected() -> void:
 
 
 func _on_tab_changed(_index: int) -> void:
-	refresh_button.disabled = tabs.get_tab_count() == 0 or tabs.get_current_tab_control().script_path.is_empty()
 	_notify_layout_changed()
 
 

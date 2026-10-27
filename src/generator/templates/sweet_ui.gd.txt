@@ -1,0 +1,60 @@
+class_name SweetUI
+extends RefCounted
+
+const EDITOR_META = &"ui_editor"
+
+var _ed_interface
+var _ed_theme:Theme
+
+var _root: Node
+var _node: Node
+
+
+func _init(node: Node) -> void:
+	_root = node
+	_node = node
+
+	if Engine.is_editor_hint() and Engine.has_singleton(&"EditorInterface"):
+		_ed_interface = Engine.get_singleton(&"EditorInterface")
+	if is_instance_valid(_ed_interface):
+		_ed_theme = _ed_interface.get_editor_theme()
+
+## Preview context is available after construction, including to attached children.
+static func is_editor(node: Node) -> bool:
+	if not Engine.is_editor_hint():
+		return false
+	while is_instance_valid(node):
+		if node.get_meta(EDITOR_META, false) == true:
+			return true
+		node = node.get_parent()
+	return false
+
+func rebase(node:Node) -> SweetUI:
+	_node = node
+	return self
+
+func to_root() -> SweetUI:
+	_node = _root
+	return self
+
+func add_node(node:Node, parent:Node=null) -> Node:
+	_get_parent(parent).add_child(node)
+	return node
+
+func add_child(node:Node, parent:Node=null) -> _Generated.SwControl:
+	if not is_instance_valid(parent):
+		parent = _node
+	return _Generated.SwControl.with_parent(node, parent, self)
+
+func spacer(parent: BoxContainer = null, begin:=false) -> SweetUI:
+	_get_parent(parent).add_spacer(begin).name = "Spacer"
+	return self
+
+func ed_icon(name:StringName):
+	if is_instance_valid(_ed_theme):
+		return _ed_theme.get_icon(name, &"EditorIcons")
+
+func _get_parent(parent:Node):
+	if is_instance_valid(parent):
+		return parent
+	return _node

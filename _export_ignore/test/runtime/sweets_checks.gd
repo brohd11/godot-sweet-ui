@@ -1,10 +1,10 @@
 extends RefCounted
 
-const UI = preload("res://addons/sweet_ui/src/sweet_ui.gd")
-const Wrappers = preload("res://addons/sweet_ui/src/gen/sweets_generated.gd")
-const Generator = preload("res://addons/sweet_ui/_export_ignore/generate/sweets_gen.gd")
+const UI = preload("res://scripts/sweet_ui/generated/sweet_ui.gd")
+const Wrappers = preload("res://scripts/sweet_ui/generated/sweets_generated.gd")
+const Generator = preload("res://addons/sweet_ui/src/generator/sweet_ui_generator.gd")
 const Cases = preload("res://addons/sweet_ui/_export_ignore/test/fixtures/generator_cases.gd")
-const Inference = preload("res://addons/sweet_ui/_export_ignore/test/fixtures/sweets_inference.gd")
+const Inference = preload("res://addons/sweet_ui/_export_ignore/test/runtime/fixtures/sweets_inference.gd")
 
 static var _failures: Array[String]
 static var _checks: int
@@ -259,7 +259,7 @@ static func _test_controls() -> bool:
 
 static func _test_committed_output() -> bool:
 	var original = FileAccess.get_file_as_string(Generator.TARGET)
-	var result = _build_candidate(original)
+	var result = _build_candidate(Generator.read_template())
 	_check("production prototypes and entry script compile", result.error == OK)
 	if result.error != OK:
 		_failures.append(str(result.get("message", "Generation failed")))
@@ -276,71 +276,46 @@ static func _test_generation() -> bool:
 	var prototype: String = workspace.prototype
 	var classes_path: String = workspace.classes
 	var sweets_path: String = workspace.sweets
-	var initial = Cases.target()
-	var prefix = initial.left(initial.find(Generator.START))
 	_write(prototype, Cases.source())
-	_write(target, initial)
+	_write(target, "stale output without markers\n")
 	_write(target + ".uid", "uid://test_sentinel\n")
-	_check("wrapper output directory starts absent", not DirAccess.dir_exists_absolute(classes_path.get_base_dir()))
 	var result = Generator._generate_file(target, prototype, classes_path, sweets_path)
-	_check("generation replaces stale region", result.error == OK and result.get("changed", false))
+	_check("generation replaces entire stale output", result.error == OK and result.get("changed", false))
 	if result.error != OK:
 		_failures.append(str(result.get("message", "Generation failed")))
 		return false
-	_check("generation creates wrapper output directory", DirAccess.dir_exists_absolute(classes_path.get_base_dir()))
-	_write(classes_path + ".uid", "uid://classes_sentinel\n")
 	var generated = FileAccess.get_file_as_string(target)
 	var generated_classes = FileAccess.get_file_as_string(classes_path)
 	var generated_sweets = FileAccess.get_file_as_string(sweets_path)
-	_write(sweets_path + ".uid", "uid://sweets_sentinel\n")
-	_check("all generated outputs are written", generated_classes.contains("class SwColorRect") and generated.contains(classes_path) and generated.contains(sweets_path) and generated_sweets.contains("static func color_rect(node: ColorRect = null)"))
-	_check("handwritten prefix preserved byte for byte", generated.begins_with(prefix))
-	_check("handwritten suffix preserved byte for byte", generated.ends_with(Cases.TARGET_SUFFIX))
-	_check("uid preserved", FileAccess.get_file_as_string(target + ".uid") == "uid://test_sentinel\n")
+	_check("all runtime outputs generated with relative references", generated.contains('preload("gen/sweets_generated.gd")') and generated.contains('preload("sweets.gd")') and generated_sweets.contains("static func color_rect(node: ColorRect = null)") and generated_classes.contains("class SwColorRect"))
+	_check("generation preserves uid", FileAccess.get_file_as_string(target + ".uid") == "uid://test_sentinel\n")
 	var modified = FileAccess.get_modified_time(target)
-	var sweets_modified = FileAccess.get_modified_time(sweets_path)
 	result = Generator._generate_file(target, prototype, classes_path, sweets_path)
-	_check("second generation skips writing", result.error == OK and not result.changed)
-	_check("unchanged generation preserves file timestamp", FileAccess.get_modified_time(target) == modified)
-	_check("repeated generation deterministic", generated == FileAccess.get_file_as_string(target) and generated_sweets == FileAccess.get_file_as_string(sweets_path))
-	_check("unchanged static generation preserves timestamp", FileAccess.get_modified_time(sweets_path) == sweets_modified)
-	_write(classes_path, generated_classes + "# stale\n")
-	result = Generator._generate_file(target, prototype, classes_path, sweets_path)
-	_check("classes regenerate independently", result.error == OK and result.changed and FileAccess.get_modified_time(target) == modified and FileAccess.get_file_as_string(classes_path) == generated_classes and FileAccess.get_file_as_string(sweets_path) == generated_sweets)
-	_check("generated classes uid preserved", FileAccess.get_file_as_string(classes_path + ".uid") == "uid://classes_sentinel\n")
-	_write(sweets_path, generated_sweets + "# stale\n")
-	result = Generator._generate_file(target, prototype, classes_path, sweets_path)
-	_check("static helpers regenerate independently", result.error == OK and result.changed and FileAccess.get_modified_time(target) == modified and FileAccess.get_file_as_string(sweets_path) == generated_sweets)
-	_check("static helper uid preserved", FileAccess.get_file_as_string(sweets_path + ".uid") == "uid://sweets_sentinel\n")
-	var crlf = initial.replace("\n", "\r\n")
-	result = _build_candidate(crlf, prototype, target, classes_path, sweets_path)
-	_check("CRLF handwritten text preserved", result.error == OK and result.source.begins_with(prefix.replace("\n", "\r\n")) and result.source.ends_with(Cases.TARGET_SUFFIX.replace("\n", "\r\n")))
-	if result.error == OK:
-		var again = _build_candidate(result.source, prototype, target, classes_path, sweets_path)
-		_check("CRLF generation is idempotent", again.error == OK and again.source == result.source)
-		_check("CRLF generation keeps consistent line endings", not result.source.replace("\r\n", "").contains("\r"))
+	_check("unchanged outputs skip writes", result.error == OK and not result.changed and FileAccess.get_modified_time(target) == modified)
+	for path in [target, classes_path, sweets_path]:
+		var saved = FileAccess.get_file_as_string(path)
+		_write(path + ".uid", "uid://preserved_sentinel\n")
+		_write(path, saved + "# stale\n")
+		result = Generator._generate_file(target, prototype, classes_path, sweets_path)
+		_check("each output regenerates independently", result.error == OK and result.changed and FileAccess.get_file_as_string(path) == saved)
+		_check("each output uid is preserved", FileAccess.get_file_as_string(path + ".uid") == "uid://preserved_sentinel\n")
+	var initial = Cases.target()
+	var crlf = _build_candidate(initial.replace("\n", "\r\n"), prototype, target, classes_path, sweets_path)
+	var lf = _build_candidate(initial, prototype, target, classes_path, sweets_path)
+	_check("template line endings produce identical generated code", crlf.error == OK and lf.error == OK and crlf.source == lf.source)
 	_write(workspace.dir.path_join("payload.gd"), "extends RefCounted\nconst VALUE = 42\n")
 	var relative = Cases.target("", '\nconst PAYLOAD = preload("./payload.gd")\n')
-	_write(target, relative)
-	result = Generator._generate_file(target, prototype, classes_path, sweets_path)
-	_check("validation preserves handwritten relative preloads", result.error == OK and FileAccess.get_file_as_string(target).contains('const PAYLOAD = preload("./payload.gd")'))
-	for malformed in [initial.replace(Generator.START, "# missing"), initial.replace(Generator.END, "# missing"), initial + Generator.START + "\n", Generator.END + "\n" + Generator.START]:
-		_write(target, malformed)
-		result = Generator._generate_file(target, prototype, classes_path, sweets_path)
-		_check("malformed markers rejected without writing", result.error != OK and FileAccess.get_file_as_string(target) == malformed)
-		_check("malformed markers preserve generated scripts", FileAccess.get_file_as_string(classes_path) == generated_classes and FileAccess.get_file_as_string(sweets_path) == generated_sweets)
-	_write(target, initial)
+	result = _build_candidate(relative, prototype, target, classes_path, sweets_path)
+	_check("validation supports relative template imports", result.error == OK)
 	result = Generator._generate_file(target, workspace.dir.path_join("absent.gd"), classes_path, sweets_path)
-	_check("missing prototypes preserve all outputs", result.error != OK and FileAccess.get_file_as_string(target) == initial and FileAccess.get_file_as_string(classes_path) == generated_classes and FileAccess.get_file_as_string(sweets_path) == generated_sweets)
-	for invalid_source in [Cases.source(Cases.BASIC_BODY, {"TYPES": {"SwMissing": {"node": "ColorRect"}}}), Cases.source(Cases.UNSUPPORTED_BODY)]:
+	_check("missing source preserves all outputs", result.error != OK and FileAccess.get_file_as_string(target) == generated and FileAccess.get_file_as_string(classes_path) == generated_classes and FileAccess.get_file_as_string(sweets_path) == generated_sweets)
+	var invalid_sources = [Cases.source(Cases.BASIC_BODY, {"TYPES": {"SwMissing": {"node": "ColorRect"}}}), Cases.source(Cases.UNSUPPORTED_BODY)]
+	for overrides in [{"SwColorRect": {"factory": "control_from"}}, {"SwControl": {"factory": "color_rect_from"}}]:
+		invalid_sources.append(Cases.source(Cases.BASIC_BODY, {"TYPES": overrides}))
+	for invalid_source in invalid_sources:
 		_write(prototype, invalid_source)
 		result = Generator._generate_file(target, prototype, classes_path, sweets_path)
-		_check("invalid prototypes preserve all outputs", result.error != OK and FileAccess.get_file_as_string(target) == initial and FileAccess.get_file_as_string(classes_path) == generated_classes and FileAccess.get_file_as_string(sweets_path) == generated_sweets)
-	for overrides in [{"SwColorRect": {"factory": "control_from"}}, {"SwControl": {"factory": "color_rect_from"}}]:
-		_write(prototype, Cases.source(Cases.BASIC_BODY, {"TYPES": overrides}))
-		result = Generator._generate_file(target, prototype, classes_path, sweets_path)
-		_check("from name collision rejected in either discovery order", result.error != OK and result.get("message", "").begins_with("Duplicate Sweets factory:"))
-		_check("from name collision preserves all outputs", FileAccess.get_file_as_string(target) == initial and FileAccess.get_file_as_string(classes_path) == generated_classes and FileAccess.get_file_as_string(sweets_path) == generated_sweets)
+		_check("invalid source and name collisions preserve all outputs", result.error != OK and FileAccess.get_file_as_string(target) == generated and FileAccess.get_file_as_string(classes_path) == generated_classes and FileAccess.get_file_as_string(sweets_path) == generated_sweets)
 	_write(prototype, Cases.source(Cases.OVERRIDE_BODY))
 	result = _build_candidate(initial, prototype, target, classes_path, sweets_path)
 	_check("derived overrides and multiline signatures generate", result.error == OK)
@@ -419,7 +394,7 @@ static func _test_source_options() -> bool:
 	var with_inference = Cases.target(Cases.INFERENCE_MEMBERS)
 	for enabled in [false, true]:
 		_write(prototype, Cases.source(Cases.BASIC_BODY, {"TYPES": {}, "RE_EXPORT": enabled}))
-		var production = _build_candidate(FileAccess.get_file_as_string(Generator.TARGET), prototype, target, classes_path, sweets_path)
+		var production = _build_candidate(Generator.read_template(), prototype, target, classes_path, sweets_path)
 		_check("handwritten production helpers compile in both reexport modes", production.error == OK)
 		if production.error == OK:
 			var production_parent = Control.new()
@@ -601,7 +576,7 @@ static func _remove_workspace(path: String) -> void:
 
 
 static func _build_candidate(original: String, source_path: String = Generator.SOURCE, target_path: String = Generator.TARGET, classes_path: String = Generator.CLASSES_TARGET, sweets_path: String = Generator.SWEETS_TARGET) -> Dictionary:
-	var result = Generator.build_candidate(original, source_path, target_path, classes_path, sweets_path)
+	var result = Generator.build_candidate(source_path, target_path, classes_path, sweets_path, original)
 	if result.error == OK:
 		_validations.append(result.validation)
 	return result
@@ -623,6 +598,9 @@ static func _check(label: String, passed: bool) -> void:
 
 
 static func _check_output(label: String, committed: String, generated: String) -> void:
+	# Saving a generated file in the script editor trims trailing blank lines.
+	committed = committed.rstrip("\n")
+	generated = generated.rstrip("\n")
 	_check(label, committed == generated)
 	if committed == generated:
 		return

@@ -112,9 +112,6 @@ func _init(node: Node) -> void:
 	_node = node
 
 
-### GENERATED START
-# Stale generated content.
-### GENERATED END
 """ + TARGET_SUFFIX
 
 

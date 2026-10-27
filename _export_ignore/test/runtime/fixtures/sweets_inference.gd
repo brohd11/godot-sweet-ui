@@ -1,6 +1,6 @@
 extends RefCounted
 
-const UI = preload("res://addons/sweet_ui/src/sweet_ui.gd")
+const UI = preload("res://scripts/sweet_ui/generated/sweet_ui.gd")
 const Sweets = UI.Sweets
 
 class CustomRect extends ColorRect:

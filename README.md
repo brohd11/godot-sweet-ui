@@ -2,6 +2,48 @@
 
 Syntactic sugar and live previews for Godot UI.
 
+Enable **Sweet UI** in Project Settings → Plugins to create the project-owned files:
+
+```text
+scripts/sweet_ui/
+    sweet_ui_source.gd
+    generated/
+        sweet_ui.gd
+        sweets.gd
+        sweets_generated.gd
+```
+
+Commit this directory, including its `.uid` files. `sweet_ui/generation/targets` in
+Project Settings maps each output directory to the class name it declares, defaulting to
+`{"res://scripts/sweet_ui": "SweetUI"}`. Each target has its own source, so a plugin can
+generate a separate build that wraps its own controls without clashing with the project's
+`SweetUI`:
+
+```gdscript
+# sweet_ui/generation/targets
+{"res://scripts/sweet_ui": "SweetUI", "res://addons/my_plugin/src/ui": ""}
+
+const PluginUI = preload("res://addons/my_plugin/src/ui/generated/sweet_ui.gd")
+var ui = PluginUI.new(self)
+```
+
+An empty name generates an unnamed build that is used by preloading it. Class names must
+be unique, and target directories cannot be nested inside one another. Move an existing
+directory through Godot before changing its entry; generation rejects a class name that
+already exists at another location. The former `sweet_ui/generation/directory` setting
+migrates to a single `SweetUI` entry.
+
+The source is a complete editable copy of the default prototypes. Enabling the plugin
+creates it only when absent and generates runtime files on first setup or when an
+output is missing. Existing source files are never overwritten by setup or addon updates.
+Changes to source require explicit regeneration. Future default-prototype improvements
+can be adopted manually from the addon's source template.
+
+All runtime code lives under `generated/` and works without the Sweet UI addon. Game
+export presets can exclude `addons/sweet_ui/*` and `scripts/sweet_ui/sweet_ui_source.gd`
+(adjust the latter for a custom directory). Generated wrappers for custom controls
+still need those controls and their dependencies. Sweet UI does not modify export presets.
+
 Sweet UI provides typed fluent wrappers:
 
 ```gdscript
@@ -74,6 +116,9 @@ to resize it; visibility and width are shared across tabs and saved with the doc
 The tree follows children added, removed, renamed, or reparented by preview code.
 Select a node to inspect its live instance, or use its script button to open the
 attached script. Inspector edits affect only that instance and reset on reload.
+A selected Control is tinted in the preview. **Highlight Selected** and **Inspect Selected**
+in the options menu toggle the tint and the Inspector hand-off; both are shared across
+tabs and saved with the dock.
 The preview panel also exposes `set_tree_side(SIDE_LEFT)` / `set_tree_side(SIDE_RIGHT)`;
 a placement button will be added later.
 
@@ -101,11 +146,14 @@ opened script is watched. Changes to dependencies may need Godot's normal script
 reload before using Refresh. Scene files, required constructor arguments, and
 unsaved script buffers are not supported. Runtime errors appear in Godot's debugger.
 
-Edit the prototypes in `_export_ignore/generate/sweets_source.gd`, then run this
-in Editor Console:
+Edit the project's `sweet_ui_source.gd`, then open
+`addons/sweet_ui/src/generator/sweet_ui_generator.gd` in the script editor and use
+**File → Run**. The shipped `_SweetUIGenerator` EditorScript regenerates every configured
+target. Editor Console can also invoke it, optionally for a single target directory:
 
 ```text
-script SweetsGen call generate
+script _SweetUIGenerator call generate
+script _SweetUIGenerator call generate res://addons/my_plugin/src/ui
 ```
 
 The generator discovers top-level `Sw…` classes: `SwColorRect` becomes the native
@@ -125,20 +173,42 @@ Factory-name overrides also name the instance companion: `rectangle` generates
 `rectangle()` and `rectangle_from()`. Names must be unique across both sets of helpers;
 collisions reject generation before any output changes.
 
-All wrapper classes live in `src/gen/sweets_generated.gd`.
-`src/sweets.gd` is fully generated and exposed as `SweetUI.Sweets`.
-`src/sweet_ui.gd` contains typed factories inside its
-`### GENERATED START` / `### GENERATED END` region. By default, their return types
-and constructors use `_Generated.SwColorRect` directly. Set `RE_EXPORT = true` in
-the prototype source to also expose aliases such as `SweetUI.SwColorRect` and
-`SweetUI.Sweets.SwColorRect`. Both helper scripts preload the same `_Generated` classes.
+All three runtime scripts are fully generated; do not edit them directly.
+`SweetUI.Sweets` exposes static factories, and both factory surfaces preload the same
+wrapper classes. By default, return types use `_Generated.SwColorRect`. Set
+`RE_EXPORT = true` in the project source to expose aliases such as
+`SweetUI.SwColorRect` and `SweetUI.Sweets.SwColorRect`.
 
-The generator uses fixed output paths for the entry script, static helpers, and wrapper classes.
-It validates all three outputs before writing, creates missing output directories, and
-skips unchanged files.
-Keep manual helpers outside the marked region.
-Generator and prototype files stay out of releases; commit all three runtime files
-and preserve their UIDs.
+Generation validates the candidate before replacing outputs, skips unchanged files,
+and preserves existing UIDs. The generator and parser dependencies stay in the addon;
+the editable source and generated runtime files belong to the project.
+
+Custom targets use a file-backed GDScript extending Control:
+
+```gdscript
+const MyTabContainer = preload("res://scripts/my_tab_container.gd")
+const TYPES = {
+	"SwMyTabContainer": {"node": MyTabContainer, "factory": "my_tab_container"},
+}
+
+class SwMyTabContainer extends SwControl:
+	#! set current_tab, tab_changed
+	func select_first() -> SwMyTabContainer:
+		_control.current_tab = 0
+		return self
+```
+
+Merge these definitions into the existing source. Custom targets can inherit script
+properties and signals, use native properties and signals, and provide handwritten
+operations. Script preload aliases at source-file scope are carried into generated
+code, including relative preloads resolved from the source directory. Prototype
+`_control` is deliberately untyped; the generated wrapper specializes it to the target.
+
+`ui.my_tab_container_from(existing).expand().node()` and
+`SweetUI.Sweets.my_tab_container().c()` infer the custom target type, so its members
+remain accessible. Creating factories require a non-abstract target with no required
+constructor arguments. Generation inspects scripts without constructing target nodes.
+Inner-class and C# targets are not supported.
 
 Use class-body tags for fluent property setters and signal connections:
 
@@ -171,9 +241,10 @@ methods are ignored. Unknown members or non-writable properties reject generatio
 any runtime file is changed.
 
 Prototypes contain operation methods over `_control`; constructors, `with_parent()`, and typed
-`node()` / `ui()` accessors are generated. Additional state, prototype constants, static
+`node()` / `c()` / `ui()` accessors are generated. Additional state, prototype constants, static
 methods, and `super` calls are unsupported. Derived methods replace inherited ones.
 
+The test entry point bootstraps missing runtime files before loading its checks.
 Run the package's checks with `test sweet_ui` in Editor Console, or headlessly:
 
 ```sh

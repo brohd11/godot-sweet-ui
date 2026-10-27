@@ -1,22 +1,28 @@
 extends VBoxContainer
 
-const Context = preload("res://addons/sweet_ui/src/sweet_ui.gd")
+const EDITOR_META = &"ui_editor"
 const NodeTree = preload("uid://dsbpnuf6nc8l8") #! resolve ResourceView.NodeTree
 
 signal tree_width_changed(width: int)
 
 const TREE_MIN_WIDTH = 140
+const HIGHLIGHT_ALPHA = 0.25
 
 var script_path: String
 var preview: Control
 var status: Label
 var canvas: Control
+var highlight: ColorRect
 var split: HSplitContainer
 var node_tree: NodeTree
 
 var _tree_side: Side = SIDE_LEFT
 var _tree_width := 200
 var _inspected_node: WeakRef
+var _selected: WeakRef
+var _inspect_enabled := true
+var _highlight_enabled := true
+var _highlighted: WeakRef
 
 var _fingerprint: String
 var _rebuild_queued := false
@@ -36,6 +42,7 @@ func _init() -> void:
 	node_tree.custom_minimum_size.x = TREE_MIN_WIDTH
 	node_tree.size_flags_horizontal = Control.SIZE_FILL
 	node_tree.object_selected.connect(_inspect_object)
+	node_tree.object_selected.connect(_highlight_object)
 	node_tree.path_activated.connect(_activate_path)
 	split.add_child(node_tree)
 	var preview_area = VBoxContainer.new()
@@ -47,13 +54,28 @@ func _init() -> void:
 	canvas.clip_contents = true
 	canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	preview_area.add_child(canvas)
+	# A canvas sibling of the preview stays out of the node tree and the user's hierarchy.
+	highlight = ColorRect.new()
+	highlight.name = "Highlight"
+	highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	highlight.color = Color(0.4, 0.6, 1.0, HIGHLIGHT_ALPHA)
+	highlight.hide()
+	canvas.add_child(highlight)
 	split.dragged.connect(_on_split_dragged)
 	_apply_tree_width()
+	set_process(false)
 
 
 func _ready() -> void:
+	if Engine.is_editor_hint() and Engine.has_singleton(&"EditorInterface"):
+		var accent = Engine.get_singleton(&"EditorInterface").get_editor_theme().get_color(&"accent_color", &"Editor")
+		highlight.color = Color(accent, HIGHLIGHT_ALPHA)
 	if not script_path.is_empty():
 		queue_rebuild()
+
+
+func _process(_delta: float) -> void:
+	_update_highlight()
 
 
 func poll_saved_file() -> void:
@@ -116,7 +138,7 @@ func _rebuild() -> void:
 	preview = instance
 	if preview.name.is_empty():
 		preview.name = script_path.get_file().get_basename()
-	preview.set_meta(Context.EDITOR_META, true)
+	preview.set_meta(EDITOR_META, true)
 	preview.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	status.hide()
 	canvas.add_child(preview)
@@ -125,6 +147,7 @@ func _rebuild() -> void:
 
 func _clear_preview() -> void:
 	_release_inspected_node()
+	_highlight_object(null)
 	node_tree.clear_root()
 	if is_instance_valid(preview):
 		if preview.get_parent() != null:
@@ -155,9 +178,19 @@ func _on_split_dragged(offset: int) -> void:
 	tree_width_changed.emit(_tree_width)
 
 
+func set_inspect_enabled(enabled: bool) -> void:
+	_inspect_enabled = enabled
+	if not enabled:
+		_release_inspected_node()
+	elif _selected != null and is_visible_in_tree():
+		# Only the visible tab reclaims the inspector, so hidden tabs don't override it.
+		_inspect_object(_selected.get_ref())
+
+
 func _inspect_object(object: Object) -> void:
+	_selected = weakref(object) if is_instance_valid(object) else null
 	_release_inspected_node()
-	if not Engine.is_editor_hint() or not is_instance_valid(object):
+	if not _inspect_enabled or not Engine.is_editor_hint() or not is_instance_valid(object):
 		return
 	if object is Node:
 		_inspected_node = weakref(object)
@@ -174,6 +207,31 @@ func _release_inspected_node() -> void:
 		object.tree_exiting.disconnect(_release_inspected_node)
 		if Engine.is_editor_hint() and EditorInterface.get_inspector().get_edited_object() == object:
 			EditorInterface.inspect_object(null)
+
+
+func set_highlight_enabled(enabled: bool) -> void:
+	_highlight_enabled = enabled
+	_update_highlight()
+
+
+func _highlight_object(object: Object) -> void:
+	_highlighted = weakref(object) if object is Control else null
+	_update_highlight()
+
+
+## Polled while a target is selected, so relayout, ancestor moves and tab switches are followed.
+func _update_highlight() -> void:
+	var target = _highlighted.get_ref() as Control if _highlighted != null else null
+	var tracking = _highlight_enabled and is_instance_valid(target)
+	set_process(tracking)
+	highlight.visible = tracking and target.is_visible_in_tree()
+	if not highlight.visible:
+		return
+	if highlight.get_index() != canvas.get_child_count() - 1:
+		canvas.move_child(highlight, -1)
+	var rect = target.get_global_rect()
+	highlight.global_position = rect.position
+	highlight.size = rect.size
 
 
 func _activate_path(path: String) -> void:

@@ -1,6 +1,6 @@
 extends VBoxContainer
 
-const Context = preload("res://addons/sweet_ui/src/sweet_ui.gd")
+const Context = preload("res://scripts/sweet_ui/generated/sweet_ui.gd")
 
 var context_in_init := false
 var context_in_enter := false

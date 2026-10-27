@@ -4,16 +4,14 @@ pre_script: ""
 post_script: ""
 test_require: 
   - @require
-  - "brohd11/godot-gdscript-parser@v0.2.2"
-  - "brohd11/godot-editor-parser@v0.1.0"
 options:
   overwrite: true
   include_uid: true
   include_import: true
-  ignore_src: true
+  ignore_src: false
   use_tag_in_cfg: true
   include_min_version: true
-  move_global_files: true
+  move_global_files: false
   include_docs: true
   include_project_license: false
   parser_settings:
@@ -29,7 +27,7 @@ options:
         aggressive: false
         debug_tags: false
         enabled: true
-      class_rename_ignore: []
+      class_rename_ignore: ["_SweetUIGenerator"]
       backport_string_renames: {}
     parse_tscn: {}
     parse_tres: {}
@@ -43,7 +41,11 @@ exports:
         - "res://addons/sweet_ui/_export_ignore"
       file_extensions: []
       files: []
-    other_transfers: []
+    other_transfers:
+      - from: res://addons/sweet_ui/src/generator/templates/
+        to: src/generator/templates/
+        recursive: true
+        ignore_deps: true
     parser_overide_settings:
       parse_cs: {}
       parse_gd: {}
