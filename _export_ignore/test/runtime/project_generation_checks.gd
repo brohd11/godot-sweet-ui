@@ -93,7 +93,8 @@ static func _test_names(directory: String) -> bool:
 	_check("unnamed wrappers preload their owner", wrappers.contains('const _SweetUI = preload("sweet_ui.gd")') and wrappers.contains("func ui() -> _SweetUI:"))
 	_check("unnamed outputs drop the global name", [target, wrappers].all(func(text): return bare_name.search(text) == null))
 	var owner_script: GDScript = ResourceLoader.load(unnamed.path_join("generated/sweet_ui.gd"), "", ResourceLoader.CACHE_MODE_IGNORE)
-	_check("unnamed target loads", owner_script != null and owner_script.can_instantiate())
+	# Not can_instantiate(): generated scripts aren't @tool, so it's false in the editor (Test CI).
+	_check("unnamed target loads", owner_script != null and owner_script.reload(true) == OK)
 	if owner_script == null:
 		return false
 	var parent = Control.new()
