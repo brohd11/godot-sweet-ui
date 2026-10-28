@@ -38,9 +38,11 @@ func set_host(host: PreviewHost) -> void:
 	if old != null:
 		old.tree_state = node_tree.get_tree_state()
 		old.preview_changed.disconnect(node_tree.set_root_node)
+		old.object_picked.disconnect(_on_object_picked)
 	if host != null:
 		node_tree.set_root_node(host.preview, host.tree_state)
 		host.preview_changed.connect(node_tree.set_root_node)
+		host.object_picked.connect(_on_object_picked)
 	else:
 		node_tree.clear_root()
 	_host = host
@@ -48,6 +50,14 @@ func set_host(host: PreviewHost) -> void:
 
 func _on_object_selected(object: Object) -> void:
 	if get_host() != null:
+		_host.select_object(object)
+
+
+# Re-selecting the current row emits nothing, and a missing row can't, so select directly then.
+func _on_object_picked(object: Object) -> void:
+	var item = node_tree.tree_items.get(object)
+	var already = item != null and node_tree.get_selected() == item
+	if (not node_tree.select_object(object) or already) and get_host() != null:
 		_host.select_object(object)
 
 

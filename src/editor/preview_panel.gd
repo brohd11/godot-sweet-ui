@@ -27,6 +27,7 @@ var _tree_side: Side = SIDE_LEFT
 var _tree_width := 200
 var _highlight_selected := true
 var _inspect_selected := true
+var _interact_preview := false
 var _poll_timer: Timer
 var _restoring := false
 var _stopped := false
@@ -93,8 +94,10 @@ func new_tab() -> PreviewHost:
 	var host = PreviewHost.new()
 	host.set_highlight_enabled(_highlight_selected)
 	host.set_inspect_enabled(_inspect_selected)
+	host.set_interact_enabled(_interact_preview)
 	host.name = UName.incremental_name_check_in_nodes("New preview", tabs.get_tab_parent())
 	host.set_drag_forwarding(Callable(), _can_drop_script, _drop_script.bind(host))
+	host.overlay.set_drag_forwarding(Callable(), _can_drop_script, _drop_script.bind(host))
 	tabs.add_tab(host)
 	tabs.set_current_tab(tabs.get_tab_count() - 1)
 	_notify_layout_changed()
@@ -110,6 +113,7 @@ func _on_options_pressed():
 		options.add_radio_option("Tree in Separate Dock", _toggle_tree_dock, _tree_docked)
 	options.add_radio_option("Highlight Selected", set_highlight_selected.bind(not _highlight_selected), _highlight_selected)
 	options.add_radio_option("Inspect Selected", set_inspect_selected.bind(not _inspect_selected), _inspect_selected)
+	options.add_radio_option("Interact with Preview", set_interact_preview.bind(not _interact_preview), _interact_preview)
 	
 	popup_placer.display_on_control(options, options_button)
 
@@ -161,7 +165,8 @@ func get_dock_data() -> Dictionary:
 		paths.append(tabs.get_tab_control(i).script_path)
 	return {"scripts": paths, "selected_tab": tabs.get_tab_bar().current_tab,
 		"tree_visible": _tree_visible, "tree_side": _tree_side, "tree_width": _tree_width,
-		"highlight_selected": _highlight_selected, "inspect_selected": _inspect_selected}
+		"highlight_selected": _highlight_selected, "inspect_selected": _inspect_selected,
+		"interact_preview": _interact_preview}
 
 
 func set_dock_data(data: Dictionary) -> void:
@@ -171,6 +176,7 @@ func set_dock_data(data: Dictionary) -> void:
 	_tree_width = maxi(int(data.get("tree_width", 200)), TREE_MIN_WIDTH)
 	_highlight_selected = bool(data.get("highlight_selected", true))
 	_inspect_selected = bool(data.get("inspect_selected", true))
+	_interact_preview = bool(data.get("interact_preview", false))
 
 	for i in range(tabs.get_tab_count() - 1, -1, -1):
 		close_tab(i)
@@ -203,6 +209,13 @@ func set_inspect_selected(enabled: bool) -> void:
 	_inspect_selected = enabled
 	for i in tabs.get_tab_count():
 		tabs.get_tab_control(i).set_inspect_enabled(enabled)
+	_notify_layout_changed()
+
+
+func set_interact_preview(enabled: bool) -> void:
+	_interact_preview = enabled
+	for i in tabs.get_tab_count():
+		tabs.get_tab_control(i).set_interact_enabled(enabled)
 	_notify_layout_changed()
 
 

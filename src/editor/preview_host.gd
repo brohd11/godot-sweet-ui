@@ -1,9 +1,14 @@
 extends VBoxContainer
 
 const EDITOR_META = &"ui_editor"
+const PickOverlay = preload("res://addons/sweet_ui/src/editor/pick_overlay.gd")
 
 ## The root the node tree should show; null once the preview is cleared.
 signal preview_changed(root: Control)
+## A control clicked in the preview, for the bound tree view to select.
+signal object_picked(object: Object)
+## Right click on the preview; the hook for a future context menu.
+signal context_requested(control: Control, screen_position: Vector2)
 
 const HIGHLIGHT_ALPHA = 0.25
 
@@ -12,6 +17,7 @@ var preview: Control
 var status: Label
 var canvas: Control
 var highlight: ColorRect
+var overlay: PickOverlay
 ## Collapse/selection parked here by the tree view while another tab is shown.
 var tree_state: Dictionary = {}
 
@@ -45,6 +51,11 @@ func _init() -> void:
 	highlight.color = Color(0.4, 0.6, 1.0, HIGHLIGHT_ALPHA)
 	highlight.hide()
 	canvas.add_child(highlight)
+	# Canvas order stays [preview, highlight, overlay] so the overlay is first to receive clicks.
+	overlay = PickOverlay.new()
+	overlay.picked.connect(_on_picked)
+	overlay.context_requested.connect(context_requested.emit)
+	canvas.add_child(overlay)
 	set_process(false)
 
 
@@ -124,6 +135,8 @@ func _rebuild() -> void:
 	preview.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	status.hide()
 	canvas.add_child(preview)
+	canvas.move_child(preview, 0)
+	overlay.root = preview
 	preview_changed.emit(preview)
 
 
@@ -131,6 +144,7 @@ func _clear_preview() -> void:
 	_inspect_object(null)
 	_highlight_object(null)
 	tree_state = {}
+	overlay.root = null
 	if is_instance_valid(preview):
 		preview_changed.emit(null)
 		if preview.get_parent() != null:
@@ -143,6 +157,19 @@ func _clear_preview() -> void:
 func select_object(object: Object) -> void:
 	_inspect_object(object)
 	_highlight_object(object)
+
+
+## Hidden, the overlay lets clicks reach the live preview.
+func set_interact_enabled(enabled: bool) -> void:
+	overlay.visible = not enabled
+
+
+func _on_picked(control: Control) -> void:
+	# The tree routes its selection back through select_object; without one, select directly.
+	if object_picked.get_connections().is_empty():
+		select_object(control)
+	else:
+		object_picked.emit(control)
 
 
 func set_inspect_enabled(enabled: bool) -> void:
@@ -194,8 +221,6 @@ func _update_highlight() -> void:
 	highlight.visible = tracking and target.is_visible_in_tree()
 	if not highlight.visible:
 		return
-	if highlight.get_index() != canvas.get_child_count() - 1:
-		canvas.move_child(highlight, -1)
 	var rect = target.get_global_rect()
 	highlight.global_position = rect.position
 	highlight.size = rect.size

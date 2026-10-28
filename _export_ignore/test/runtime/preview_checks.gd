@@ -24,6 +24,7 @@ static func run_tests() -> Dictionary:
 	await _test_tabs_and_lifecycle()
 	await _test_tree_layout()
 	await _test_highlight()
+	await _test_pick()
 	await _test_saved_changes()
 	_viewport.free()
 	_viewport = null
@@ -221,7 +222,7 @@ static func _test_highlight() -> void:
 	await tree.process_frame
 	_check("highlight starts hidden", not host.highlight.visible)
 	panel.tree_view.node_tree.object_selected.emit(child)
-	_check("selected control is highlighted on top", host.highlight.visible and host.highlight.get_global_rect().is_equal_approx(child.get_global_rect()) and host.highlight.get_index() == host.canvas.get_child_count() - 1)
+	_check("selected control is highlighted on top", host.highlight.visible and host.highlight.get_global_rect().is_equal_approx(child.get_global_rect()) and host.highlight.get_index() > host.preview.get_index())
 	_check("highlight stays out of the node tree", not panel.tree_view.node_tree.tree_items.has(host.highlight))
 	child.size = Vector2(120, 60)
 	await tree.process_frame
@@ -265,6 +266,58 @@ static func _test_highlight() -> void:
 	_check("legacy dock data enables inspect", panel.get_dock_data().inspect_selected)
 	panel.clean_up()
 	panel.free()
+
+
+static func _test_pick() -> void:
+	var tree = Engine.get_main_loop() as SceneTree
+	var panel = PreviewPanel.new()
+	panel.size = Vector2(800, 500)
+	_viewport.add_child(panel)
+	panel.open_script(BASIC)
+	await tree.process_frame
+	await tree.process_frame
+	var host = panel.tabs.get_current_tab_control()
+	var overlay = host.overlay
+	var node_tree = panel.tree_view.node_tree
+	var button: Button = host.preview.get_child(0)
+	_check("overlay sits on top of the canvas and stops mouse input", overlay.get_index() == host.canvas.get_child_count() - 1 and overlay.mouse_filter == Control.MOUSE_FILTER_STOP and overlay.visible)
+	_check("overlay covers the preview", overlay.get_global_rect().is_equal_approx(host.preview.get_global_rect()))
+	node_tree.tree_items[host.preview].collapsed = true
+	_click_control(overlay, button, MOUSE_BUTTON_LEFT)
+	_check("left click reveals and selects the control's row", node_tree.get_selected() == node_tree.tree_items[button] and not node_tree.tree_items[host.preview].collapsed)
+	_check("left click selects and highlights the control", host._selected != null and host._selected.get_ref() == button and host.highlight.visible)
+	_check("picking does not press preview controls", host.preview.presses == 0)
+	_click(overlay, overlay.size - Vector2(5, 5), MOUSE_BUTTON_LEFT)
+	_check("empty space picks the preview root", node_tree.get_selected() == node_tree.tree_items[host.preview] and host._selected.get_ref() == host.preview)
+	var requests: Array = []
+	host.context_requested.connect(func(control: Control, _position: Vector2): requests.append(control))
+	_click_control(overlay, button, MOUSE_BUTTON_RIGHT)
+	_check("right click requests a menu for the control", requests == [button])
+	_check("right click keeps the selection", node_tree.get_selected() == node_tree.tree_items[host.preview])
+	host.select_object(null)
+	_click(overlay, overlay.size - Vector2(5, 5), MOUSE_BUTTON_LEFT)
+	_check("picking the selected row reselects it on the host", host._selected != null and host._selected.get_ref() == host.preview)
+	panel.set_interact_preview(true)
+	_check("interact mode hides the overlay", not overlay.visible)
+	var saved = panel.get_dock_data()
+	panel.set_dock_data(saved)
+	_check("interact setting round trips", panel.get_dock_data() == saved and not panel.tabs.get_tab_control(0).overlay.visible)
+	panel.set_dock_data({"scripts": [BASIC], "selected_tab": 0})
+	_check("legacy dock data picks by default", not panel.get_dock_data().interact_preview and panel.tabs.get_tab_control(0).overlay.visible)
+	panel.clean_up()
+	panel.free()
+
+
+static func _click_control(overlay: Control, target: Control, button_index: MouseButton) -> void:
+	_click(overlay, overlay.get_global_transform().affine_inverse() * target.get_global_rect().get_center(), button_index)
+
+
+static func _click(overlay: Control, position: Vector2, button_index: MouseButton) -> void:
+	var event = InputEventMouseButton.new()
+	event.button_index = button_index
+	event.pressed = true
+	event.position = position
+	overlay._gui_input(event)
 
 
 static func _test_saved_changes() -> void:
