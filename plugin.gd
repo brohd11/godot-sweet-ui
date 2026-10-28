@@ -1,12 +1,7 @@
 @tool
 extends EditorPlugin
 
-const PreviewPanel = preload("res://addons/sweet_ui/src/editor/preview_panel.gd")
 const Generator = preload("res://addons/sweet_ui/src/generator/sweet_ui_generator.gd")
-const NodeRefs = preload("res://addons/_lib/editor_node_ref/src/editor_node_ref.gd")
-
-var _docks: DockManager.InstanceManager
-var _panel: PreviewPanel
 
 
 func _get_plugin_name() -> String:
@@ -19,27 +14,13 @@ func _get_plugin_icon() -> Texture2D:
 
 func _enter_tree() -> void:
 	Generator._report(Generator.setup())
-	NodeRefs.call_on_ready(_create_panel)
-
-
-func _create_panel() -> void:
-	if not is_inside_tree() or is_instance_valid(_panel):
-		return
-	_panel = PreviewPanel.new()
-	_docks = DockManager.InstanceManager.new(self, false)
-	var dock = _docks.new_persistent_dock_manager(_panel, DockManager.Slot.BOTTOM_PANEL)
-	dock.allow_scene_reload = true
-	_panel.layout_changed.connect(dock.save_layout_data)
+	SweetUIEditor.register_node(self)
 
 
 func _get_window_layout(_configuration: ConfigFile) -> void:
-	if _docks != null:
-		_docks.save_layout_data()
+	if SweetUIEditor.instance_valid():
+		SweetUIEditor.get_instance().save_layout_data()
 
 
 func _exit_tree() -> void:
-	if is_instance_valid(_panel):
-		_panel.clean_up()
-	if _docks != null:
-		_docks.clean_up()
-	_docks = null
+	SweetUIEditor.unregister_node(self)

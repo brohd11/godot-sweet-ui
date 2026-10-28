@@ -1,11 +1,10 @@
 extends VBoxContainer
 
 const EDITOR_META = &"ui_editor"
-const NodeTree = preload("uid://dsbpnuf6nc8l8") #! resolve ResourceView.NodeTree
 
-signal tree_width_changed(width: int)
+## The root the node tree should show; null once the preview is cleared.
+signal preview_changed(root: Control)
 
-const TREE_MIN_WIDTH = 140
 const HIGHLIGHT_ALPHA = 0.25
 
 var script_path: String
@@ -13,11 +12,9 @@ var preview: Control
 var status: Label
 var canvas: Control
 var highlight: ColorRect
-var split: HSplitContainer
-var node_tree: NodeTree
+## Collapse/selection parked here by the tree view while another tab is shown.
+var tree_state: Dictionary = {}
 
-var _tree_side: Side = SIDE_LEFT
-var _tree_width := 200
 var _inspected_node: WeakRef
 var _selected: WeakRef
 var _inspect_enabled := true
@@ -35,25 +32,12 @@ func _init() -> void:
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status.text = "Drop a Control script onto this tab to preview it."
 	status.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	split = HSplitContainer.new()
-	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	add_child(split)
-	node_tree = NodeTree.new()
-	node_tree.custom_minimum_size.x = TREE_MIN_WIDTH
-	node_tree.size_flags_horizontal = Control.SIZE_FILL
-	node_tree.object_selected.connect(_inspect_object)
-	node_tree.object_selected.connect(_highlight_object)
-	node_tree.path_activated.connect(_activate_path)
-	split.add_child(node_tree)
-	var preview_area = VBoxContainer.new()
-	preview_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	split.add_child(preview_area)
-	preview_area.add_child(status)
+	add_child(status)
 	canvas = Control.new()
 	canvas.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	canvas.clip_contents = true
 	canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	preview_area.add_child(canvas)
+	add_child(canvas)
 	# A canvas sibling of the preview stays out of the node tree and the user's hierarchy.
 	highlight = ColorRect.new()
 	highlight.name = "Highlight"
@@ -61,8 +45,6 @@ func _init() -> void:
 	highlight.color = Color(0.4, 0.6, 1.0, HIGHLIGHT_ALPHA)
 	highlight.hide()
 	canvas.add_child(highlight)
-	split.dragged.connect(_on_split_dragged)
-	_apply_tree_width()
 	set_process(false)
 
 
@@ -142,40 +124,25 @@ func _rebuild() -> void:
 	preview.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	status.hide()
 	canvas.add_child(preview)
-	node_tree.set_root_node(preview)
+	preview_changed.emit(preview)
 
 
 func _clear_preview() -> void:
-	_release_inspected_node()
+	_inspect_object(null)
 	_highlight_object(null)
-	node_tree.clear_root()
+	tree_state = {}
 	if is_instance_valid(preview):
+		preview_changed.emit(null)
 		if preview.get_parent() != null:
 			preview.get_parent().remove_child(preview)
 		preview.free()
 	preview = null
 
 
-func set_tree_layout(tree_visible: bool, side: Side, width: int) -> void:
-	_tree_width = maxi(width, TREE_MIN_WIDTH)
-	set_tree_side(side)
-	node_tree.visible = tree_visible
-
-
-func set_tree_side(side: Side) -> void:
-	_tree_side = SIDE_RIGHT if side == SIDE_RIGHT else SIDE_LEFT
-	split.move_child(node_tree, 0 if _tree_side == SIDE_LEFT else 1)
-	_apply_tree_width()
-
-
-func _apply_tree_width() -> void:
-	# In Godot 4.6 the split baseline is the edge beside the non-expanding child.
-	split.split_offset = _tree_width * (1 if _tree_side == SIDE_LEFT else -1)
-
-
-func _on_split_dragged(offset: int) -> void:
-	_tree_width = maxi(TREE_MIN_WIDTH, offset * (1 if _tree_side == SIDE_LEFT else -1))
-	tree_width_changed.emit(_tree_width)
+## Called by whichever tree view currently shows this host.
+func select_object(object: Object) -> void:
+	_inspect_object(object)
+	_highlight_object(object)
 
 
 func set_inspect_enabled(enabled: bool) -> void:
@@ -232,19 +199,6 @@ func _update_highlight() -> void:
 	var rect = target.get_global_rect()
 	highlight.global_position = rect.position
 	highlight.size = rect.size
-
-
-func _activate_path(path: String) -> void:
-	if not Engine.is_editor_hint() or not ResourceLoader.exists(path):
-		return
-	if path.get_extension().to_lower() in ["tscn", "scn"]:
-		EditorInterface.open_scene_from_path(path)
-	else:
-		var resource = load(path)
-		if resource is Script:
-			EditorInterface.edit_script(resource)
-		else:
-			EditorInterface.edit_resource(resource)
 
 
 func _show_error(message: String) -> void:

@@ -6,6 +6,9 @@ const Options = preload("uid://dxdxq2n3imf4q") #! resolve UtilR.Nodes.PopupMenus
 const TabBarContainer = preload("uid://dhohyyr2xlven") #! resolve UIRuntime.Tabs.TabBarContainer
 
 const PreviewHost = preload("res://addons/sweet_ui/src/editor/preview_host.gd")
+const TreeView = preload("res://addons/sweet_ui/src/editor/tree_view.gd")
+
+const TREE_MIN_WIDTH = 140
 
 signal layout_changed
 
@@ -15,6 +18,10 @@ var options_button:Button
 
 var tabs: TabBarContainer
 var add_button: Button
+var tree_split: HSplitContainer
+var tree_view: TreeView
+var _hub: SweetUIEditor
+var _tree_docked := false
 var _tree_visible := true
 var _tree_side: Side = SIDE_LEFT
 var _tree_width := 200
@@ -45,6 +52,25 @@ func _ready() -> void:
 	bar.set_drag_forwarding(Callable(), _can_drop_on_bar, _drop_on_bar)
 	tabs.tab_changed.connect(_on_tab_changed)
 
+	# The split sits under the tab bar so tabs keep the full dock width.
+	tree_split = HSplitContainer.new()
+	tree_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	tabs.add_child(tree_split)
+	tree_view = TreeView.new()
+	tree_view.custom_minimum_size.x = TREE_MIN_WIDTH
+	tree_view.drop_target = self
+	tree_split.add_child(tree_view)
+	var content: Control = tabs.get_tab_parent()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.reparent(tree_split, false)
+	tree_split.dragged.connect(_on_split_dragged)
+
+	if SweetUIEditor.instance_valid():
+		_hub = SweetUIEditor.get_instance()
+		_hub.tree_dock_changed.connect(set_tree_docked)
+		_tree_docked = _hub.has_tree_dock()
+	_apply_tree_layout()
+
 	ui.rebase(tabs.get_tab_bar_hbox())
 	add_button = (ui.button().icon(ui.ed_icon(&"Add")).tooltip_text("New preview tab")
 				.theme_type_variation("FlatButton").pressed(new_tab).c())
@@ -65,13 +91,10 @@ func new_tab() -> PreviewHost:
 	if _stopped:
 		return null
 	var host = PreviewHost.new()
-	host.set_tree_layout(_tree_visible, _tree_side, _tree_width)
 	host.set_highlight_enabled(_highlight_selected)
 	host.set_inspect_enabled(_inspect_selected)
-	host.tree_width_changed.connect(_on_tree_width_changed)
 	host.name = UName.incremental_name_check_in_nodes("New preview", tabs.get_tab_parent())
 	host.set_drag_forwarding(Callable(), _can_drop_script, _drop_script.bind(host))
-	host.node_tree.set_drag_forwarding(Callable(), _can_drop_script, _drop_script.bind(host))
 	tabs.add_tab(host)
 	tabs.set_current_tab(tabs.get_tab_count() - 1)
 	_notify_layout_changed()
@@ -81,7 +104,10 @@ func _on_options_pressed():
 	var options = Options.new()
 	if not (tabs.get_tab_count() == 0 or tabs.get_current_tab_control().script_path.is_empty()):
 		options.add_option("Reload", _refresh_selected, ["Reload"])
-	options.add_option("Hide Tree" if _tree_visible else "Show Tree", set_tree_visible.bind(not _tree_visible), ["FileTree"])
+	if not _tree_docked:
+		options.add_option("Hide Tree" if _tree_visible else "Show Tree", set_tree_visible.bind(not _tree_visible), ["FileTree"])
+	if is_instance_valid(_hub):
+		options.add_radio_option("Tree in Separate Dock", _toggle_tree_dock, _tree_docked)
 	options.add_radio_option("Highlight Selected", set_highlight_selected.bind(not _highlight_selected), _highlight_selected)
 	options.add_radio_option("Inspect Selected", set_inspect_selected.bind(not _inspect_selected), _inspect_selected)
 	
@@ -142,7 +168,7 @@ func set_dock_data(data: Dictionary) -> void:
 	_restoring = true
 	_tree_visible = bool(data.get("tree_visible", true))
 	_tree_side = SIDE_RIGHT if int(data.get("tree_side", SIDE_LEFT)) == SIDE_RIGHT else SIDE_LEFT
-	_tree_width = maxi(int(data.get("tree_width", 200)), PreviewHost.TREE_MIN_WIDTH)
+	_tree_width = maxi(int(data.get("tree_width", 200)), TREE_MIN_WIDTH)
 	_highlight_selected = bool(data.get("highlight_selected", true))
 	_inspect_selected = bool(data.get("inspect_selected", true))
 
@@ -157,6 +183,7 @@ func set_dock_data(data: Dictionary) -> void:
 	if tabs.get_tab_count() == 0:
 		new_tab()
 	tabs.set_current_tab(clampi(int(data.get("selected_tab", 0)), 0, tabs.get_tab_count() - 1))
+	_apply_tree_layout()
 	_restoring = false
 
 
@@ -185,20 +212,56 @@ func set_tree_side(side: Side) -> void:
 	_apply_tree_layout()
 
 
-func _on_tree_width_changed(width: int) -> void:
-	_tree_width = width
+## Driven by the hub: while the tree has its own dock, the embedded one is hidden and unbound.
+func set_tree_docked(docked: bool) -> void:
+	_tree_docked = docked
+	_apply_tree_layout()
+	_sync_active_host()
+
+
+func _toggle_tree_dock() -> void:
+	if not is_instance_valid(_hub):
+		return
+	if _tree_docked:
+		_hub.close_tree_dock()
+	else:
+		_hub.open_tree_dock()
+
+
+func _on_split_dragged(offset: int) -> void:
+	_tree_width = maxi(TREE_MIN_WIDTH, offset * (1 if _tree_side == SIDE_LEFT else -1))
 	_apply_tree_layout()
 
 
 func _apply_tree_layout() -> void:
-	for i in tabs.get_tab_count():
-		tabs.get_tab_control(i).set_tree_layout(_tree_visible, _tree_side, _tree_width)
+	tree_view.visible = _tree_visible and not _tree_docked
+	tree_split.move_child(tree_view, 0 if _tree_side == SIDE_LEFT else 1)
+	# In Godot 4.6 the split baseline is the edge beside the non-expanding child.
+	tree_split.split_offset = _tree_width * (1 if _tree_side == SIDE_LEFT else -1)
 	_notify_layout_changed()
+
+
+func get_current_host() -> PreviewHost:
+	# The bar can lead its controls mid-close, so only trust an index both agree on.
+	var index: int = tabs.get_tab_bar().current_tab
+	if index < 0 or index >= tabs.get_tab_count() or index >= tabs.get_tab_parent().get_child_count():
+		return null
+	return tabs.get_tab_control(index)
+
+
+func _sync_active_host() -> void:
+	if _stopped:
+		return
+	var host = get_current_host()
+	tree_view.set_host(null if _tree_docked else host)
+	if is_instance_valid(_hub):
+		_hub.set_active(self, host)
 
 
 func clean_up() -> void:
 	_stopped = true
 	_poll_timer.stop()
+	tree_view.set_host(null)
 	for i in tabs.get_tab_count():
 		tabs.get_tab_control(i).clean_up()
 
@@ -218,6 +281,7 @@ func _refresh_selected() -> void:
 
 
 func _on_tab_changed(_index: int) -> void:
+	_sync_active_host()
 	_notify_layout_changed()
 
 

@@ -3,6 +3,7 @@ extends RefCounted
 const Context = preload("res://scripts/sweet_ui/generated/sweet_ui.gd")
 const PreviewPanel = preload("res://addons/sweet_ui/src/editor/preview_panel.gd")
 const Host = preload("res://addons/sweet_ui/src/editor/preview_host.gd")
+const TreeView = preload("res://addons/sweet_ui/src/editor/tree_view.gd")
 const BASIC = "res://addons/sweet_ui/_export_ignore/test/runtime/fixtures/basic_control.gd"
 const REQUIRED = "res://addons/sweet_ui/_export_ignore/test/runtime/fixtures/required_argument.gd"
 
@@ -58,15 +59,16 @@ static func _test_tabs_and_lifecycle() -> void:
 	panel._drop_script(Vector2.ZERO, {"type": "files", "files": [BASIC]})
 	await tree.process_frame
 	var host = panel.tabs.get_current_tab_control()
+	var node_tree = panel.tree_view.node_tree
 	_check("file drop fills the empty tab", panel.tabs.get_tab_count() == 1)
 	_check("non-tool preview instantiated", is_instance_valid(host.preview))
 	if is_instance_valid(host.preview):
 		var control = host.preview
-		_check("tree binds the actual preview and ready children", host.node_tree.current_scene_instance == control and host.node_tree.tree_items.has(control.get_child(0)))
-		_check("preview root has a readable script name", host.node_tree.get_root().get_text(0) == "basic_control")
+		_check("tree binds the actual preview and ready children", node_tree.current_scene_instance == control and node_tree.tree_items.has(control.get_child(0)))
+		_check("preview root has a readable script name", node_tree.get_root().get_text(0) == "basic_control")
 		var activated_paths: Array[String] = []
-		host.node_tree.path_activated.connect(func(path: String): activated_paths.append(path))
-		host.node_tree._on_button_clicked(host.node_tree.tree_items[control], 0, host.node_tree.SCRIPT_BUTTON, MOUSE_BUTTON_LEFT)
+		node_tree.path_activated.connect(func(path: String): activated_paths.append(path))
+		node_tree._on_button_clicked(node_tree.tree_items[control], 0, node_tree.SCRIPT_BUTTON, MOUSE_BUTTON_LEFT)
 		_check("script button activates the attached script", activated_paths == [BASIC])
 		_check("fixture is non-tool", not control.get_script().is_tool())
 		_check("constructor precedes marker", not control.context_in_init)
@@ -79,7 +81,7 @@ static func _test_tabs_and_lifecycle() -> void:
 		await tree.process_frame
 		_check("Refresh frees old instance", not is_instance_valid(control))
 		_check("Refresh resets instance state", is_instance_valid(host.preview) and host.preview.presses == 0)
-		_check("Refresh binds only the new preview tree", host.node_tree.current_scene_instance == host.preview and host.node_tree.tree_items.size() == 2)
+		_check("Refresh binds only the new preview tree", node_tree.current_scene_instance == host.preview and node_tree.tree_items.size() == 2)
 	panel.open_script(BASIC)
 	_check("duplicate script selects existing tab", panel.tabs.get_tab_count() == 1 and panel.tabs.get_tab_bar().current_tab == 0)
 	panel.add_button.pressed.emit()
@@ -103,7 +105,7 @@ static func _test_tabs_and_lifecycle() -> void:
 	await tree.process_frame
 	var required_host = panel.tabs.get_current_tab_control()
 	_check("required constructor arguments show status", required_host.preview == null and required_host.status.visible)
-	_check("failed preview leaves an empty tree", required_host.node_tree.current_scene_instance == null and required_host.node_tree.tree_items.is_empty())
+	_check("failed preview leaves an empty tree", node_tree.current_scene_instance == null and node_tree.tree_items.is_empty())
 	var state = panel.get_dock_data()
 	_check("saved tab order", state.scripts == [BASIC, REQUIRED])
 	panel.set_dock_data(state)
@@ -128,7 +130,7 @@ static func _test_tabs_and_lifecycle() -> void:
 	panel.clean_up()
 	await tree.process_frame
 	_check("cleanup stops polling and pending builds", panel._poll_timer.is_stopped() and remaining.preview == null)
-	_check("cleanup releases tree roots and subscriptions", remaining.node_tree.current_scene_instance == null and remaining.node_tree._watched.is_empty())
+	_check("cleanup releases tree roots and subscriptions", node_tree.current_scene_instance == null and node_tree._watched.is_empty())
 	parent.free()
 	var empty_panel = PreviewPanel.new()
 	_viewport.add_child(empty_panel)
@@ -146,43 +148,58 @@ static func _test_tree_layout() -> void:
 	panel.open_script(BASIC)
 	await tree.process_frame
 	await tree.process_frame
-	var first = panel.tabs.get_current_tab_control()
-	_check("tree starts visible on the left", first.node_tree.visible and first.split.get_child(0) == first.node_tree)
-	_check("default tree width is applied (got %s, split %s, offset %s)" % [first.node_tree.size, first.split.size, first.split.split_offset], is_equal_approx(first.node_tree.size.x, 200.0))
-	var second = panel.new_tab()
+	var view = panel.tree_view
+	var split = panel.tree_split
+	_check("tab bar keeps the full width above the tree split", panel.tabs.get_tab_bar_hbox().get_parent() == panel.tabs and panel.tabs.get_tab_parent().get_parent() == split)
+	_check("tree starts visible on the left", view.visible and split.get_child(0) == view)
+	_check("default tree width is applied (got %s, split %s, offset %s)" % [view.size, split.size, split.split_offset], is_equal_approx(view.size.x, 200.0))
 	panel.set_tree_visible(false)
-	_check("tree visibility is shared", not first.node_tree.visible and not second.node_tree.visible)
+	_check("tree can be hidden", not view.visible)
 	panel.set_tree_visible(true)
 	panel.set_tree_side(SIDE_RIGHT)
 	await tree.process_frame
 	await tree.process_frame
-	_check("side switching reorders both tabs", first.split.get_child(1) == first.node_tree and second.split.get_child(1) == second.node_tree)
-	_check("side switching retains tree width (got %s, split %s, offset %s)" % [second.node_tree.size, second.split.size, second.split.split_offset], is_equal_approx(second.node_tree.size.x, 200.0))
-	second.split.dragged.emit(-240)
+	_check("side switching moves the tree", split.get_child(1) == view)
+	_check("side switching retains tree width (got %s, split %s, offset %s)" % [view.size, split.size, split.split_offset], is_equal_approx(view.size.x, 200.0))
+	split.dragged.emit(-240)
 	await tree.process_frame
 	await tree.process_frame
-	_check("dragged width propagates across tabs", panel.get_dock_data().tree_width == 240 and first._tree_width == 240 and second._tree_width == 240)
-	_check("right-side width matches layout (got %s, split %s, offset %s)" % [second.node_tree.size, second.split.size, second.split.split_offset], is_equal_approx(second.node_tree.size.x, 240.0))
-	var third = panel.new_tab()
-	_check("new tabs inherit shared layout", third.split.get_child(1) == third.node_tree and third._tree_width == 240)
+	_check("dragged width is saved", panel.get_dock_data().tree_width == 240)
+	_check("right-side width matches layout (got %s, split %s, offset %s)" % [view.size, split.size, split.split_offset], is_equal_approx(view.size.x, 240.0))
 	var saved = panel.get_dock_data()
 	panel.set_dock_data(saved)
 	await tree.process_frame
 	await tree.process_frame
 	_check("shared tree layout round trips", panel.get_dock_data() == saved)
-	_check("restored layout reaches every host", panel.tabs.get_tab_control(0).split.get_child(1) == panel.tabs.get_tab_control(0).node_tree)
+	_check("restored layout reaches the split", split.get_child(1) == view and split.split_offset == -240)
 	panel.set_dock_data({"scripts": [BASIC], "selected_tab": 0})
 	await tree.process_frame
 	await tree.process_frame
 	_check("legacy dock data uses default tree layout", panel.get_dock_data().tree_visible and panel.get_dock_data().tree_side == SIDE_LEFT and panel.get_dock_data().tree_width == 200)
-	first = panel.tabs.get_current_tab_control()
+	var first = panel.tabs.get_current_tab_control()
 	var child = Button.new()
 	first.preview.add_child(child)
 	await tree.process_frame
 	await tree.process_frame
-	_check("preview interaction can add live tree rows", first.node_tree.tree_items.has(child))
-	panel.new_tab()
-	_check("new empty tab has an independent tree", panel.tabs.get_current_tab_control().node_tree.tree_items.is_empty() and first.node_tree.tree_items.has(child))
+	_check("preview interaction can add live tree rows", view.node_tree.tree_items.has(child))
+	view.node_tree.tree_items[first.preview].collapsed = true
+	view.node_tree.set_selected(view.node_tree.tree_items[child], 0)
+	_check("tree selection reaches the active tab", first._selected != null and first._selected.get_ref() == child)
+	var second = panel.new_tab()
+	_check("new tab repoints the shared tree", view.get_host() == second and view.node_tree.current_scene_instance == null)
+	_check("repointing keeps the old tab's selection", first._selected != null and first._selected.get_ref() == child)
+	panel.tabs.set_current_tab(0)
+	_check("switching back restores collapse and selection", view.get_host() == first and view.node_tree.tree_items[first.preview].collapsed and view.node_tree.get_selected() == view.node_tree.tree_items[child])
+	panel.set_tree_docked(true)
+	_check("docking hides and unbinds the embedded tree", not view.visible and view.get_host() == null)
+	var other = TreeView.new()
+	_viewport.add_child(other)
+	other.set_host(first)
+	_check("another tree view picks up the parked state", other.node_tree.current_scene_instance == first.preview and other.node_tree.tree_items[first.preview].collapsed)
+	other.set_host(null)
+	other.free()
+	panel.set_tree_docked(false)
+	_check("undocking rebinds the embedded tree", view.visible and view.get_host() == first)
 	panel.clean_up()
 	panel.free()
 
@@ -203,17 +220,17 @@ static func _test_highlight() -> void:
 	await tree.process_frame
 	await tree.process_frame
 	_check("highlight starts hidden", not host.highlight.visible)
-	host.node_tree.object_selected.emit(child)
+	panel.tree_view.node_tree.object_selected.emit(child)
 	_check("selected control is highlighted on top", host.highlight.visible and host.highlight.get_global_rect().is_equal_approx(child.get_global_rect()) and host.highlight.get_index() == host.canvas.get_child_count() - 1)
-	_check("highlight stays out of the node tree", not host.node_tree.tree_items.has(host.highlight))
+	_check("highlight stays out of the node tree", not panel.tree_view.node_tree.tree_items.has(host.highlight))
 	child.size = Vector2(120, 60)
 	await tree.process_frame
 	_check("highlight follows control layout", host.highlight.get_global_rect().is_equal_approx(child.get_global_rect()))
 	var timer = Timer.new()
 	host.preview.add_child(timer)
-	host.node_tree.object_selected.emit(timer)
+	panel.tree_view.node_tree.object_selected.emit(timer)
 	_check("non-Control selection clears highlight", not host.highlight.visible)
-	host.node_tree.object_selected.emit(child)
+	panel.tree_view.node_tree.object_selected.emit(child)
 	var second = panel.new_tab()
 	await tree.process_frame
 	_check("highlight hides with its tab", not host.highlight.visible)
@@ -224,7 +241,7 @@ static func _test_highlight() -> void:
 	_check("disabling highlight hides it on every tab", not host.highlight.visible and not second._highlight_enabled)
 	panel.set_highlight_selected(true)
 	_check("re-enabling highlight restores the selection", host.highlight.visible)
-	host.node_tree.object_selected.emit(null)
+	panel.tree_view.node_tree.object_selected.emit(null)
 	_check("deselection clears highlight", not host.highlight.visible)
 	panel.set_highlight_selected(false)
 	var saved = panel.get_dock_data()
@@ -236,7 +253,7 @@ static func _test_highlight() -> void:
 	await tree.process_frame
 	await tree.process_frame
 	host = panel.tabs.get_tab_control(0)
-	host.node_tree.object_selected.emit(host.preview)
+	panel.tree_view.node_tree.object_selected.emit(host.preview)
 	_check("selection is remembered for inspection", host._selected != null and host._selected.get_ref() == host.preview)
 	second = panel.new_tab()
 	panel.set_inspect_selected(false)
@@ -260,6 +277,9 @@ static func _test_saved_changes() -> void:
 	host.script_path = path
 	_write(path, "extends Label\nfunc _ready():\n\ttext = \"before\"\n")
 	_viewport.add_child(host)
+	var view = TreeView.new()
+	_viewport.add_child(view)
+	view.set_host(host)
 	await tree.process_frame
 	_check("saved source builds", is_instance_valid(host.preview) and host.preview.text == "before")
 	var before = host.preview
@@ -275,12 +295,12 @@ static func _test_saved_changes() -> void:
 	host.poll_saved_file()
 	await tree.process_frame
 	_check("non-Control scripts show status", host.preview == null and host.status.visible)
-	_check("invalid saved script clears the tree", host.node_tree.tree_items.is_empty() and host.node_tree.current_scene_instance == null)
+	_check("invalid saved script clears the tree", view.node_tree.tree_items.is_empty() and view.node_tree.current_scene_instance == null)
 	_write(path, "extends Label\nfunc _ready():\n\ttext = \"recovered\"\n")
 	host.poll_saved_file()
 	await tree.process_frame
 	_check("corrected script recovers", is_instance_valid(host.preview) and host.preview.text == "recovered")
-	_check("corrected script repopulates the tree", host.node_tree.current_scene_instance == host.preview and host.node_tree.tree_items.has(host.preview))
+	_check("corrected script repopulates the tree", view.node_tree.current_scene_instance == host.preview and view.node_tree.tree_items.has(host.preview))
 	DirAccess.remove_absolute(path)
 	host.poll_saved_file()
 	await tree.process_frame
@@ -290,6 +310,7 @@ static func _test_saved_changes() -> void:
 	await tree.process_frame
 	_check("recreated scripts recover", is_instance_valid(host.preview) and not host.status.visible)
 	host.clean_up()
+	view.free()
 	host.free()
 	DirAccess.remove_absolute(path)
 
