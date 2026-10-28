@@ -104,9 +104,11 @@ func new_tab() -> PreviewHost:
 	return host
 
 func _on_options_pressed():
+	var current_script_path = tabs.get_current_tab_control().script_path
 	var options = Options.new()
-	if not (tabs.get_tab_count() == 0 or tabs.get_current_tab_control().script_path.is_empty()):
+	if not (tabs.get_tab_count() == 0 or current_script_path.is_empty()):
 		options.add_option("Reload", _refresh_selected, ["Reload"])
+		options.add_option("Edit Script", EditorInterface.edit_script.bind(load(current_script_path)), ["Script"])
 	if not _tree_docked:
 		options.add_option("Hide Tree" if _tree_visible else "Show Tree", set_tree_visible.bind(not _tree_visible), ["FileTree"])
 	if is_instance_valid(_hub):
