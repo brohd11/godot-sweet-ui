@@ -52,7 +52,8 @@ static func _report(result: Dictionary) -> Error:
 	if result.error != OK:
 		push_error(result.message)
 	else:
-		print("Sweet UI generated." if result.changed else "Sweet UI already up to date.")
+		if result.changed:
+			print("Sweet UI generated.")
 		if result.changed and Engine.is_editor_hint() and Engine.has_singleton(&"EditorInterface"):
 			_scan_editor.call_deferred()
 	return result.error
