@@ -2,6 +2,8 @@
 
 Syntactic sugar for building UI with code in Godot. Also has a dock which will instance scripts and reload on save.
 
+Godot 4.6+
+
 The library is essentially a wrapper for each kind of control, allowing quickly setting common flags/variables.
 It is generated via code, and can create multiple copies. This makes it easy add custom class wrappers or to have an Editor vs Runtime library. 
 The plugin generates the class when the files are missing, or when explicitly ran.
