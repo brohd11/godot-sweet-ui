@@ -1,11 +1,84 @@
 # Sweet UI
 
-Syntactic sugar and live previews for Godot UI.
+Syntactic sugar for building UI with code in Godot. Also has a dock which will instance scripts and reload on save.
 
-Enable **Sweet UI** in Project Settings → Plugins to create the project-owned files:
+The library is essentially a wrapper for each kind of control, allowing quickly setting common flags/variables.
+It is generated via code, and can create multiple copies. This makes it easy add custom class wrappers or to have an Editor vs Runtime library. 
+The plugin generates the class when the files are missing, or when explicitly ran.
+
+```gdscript
+extends Control
+
+const Sw = SweetUI.Sweets
+
+func _build_ui():
+	# create the root wrapper
+	var ui = SweetUI.new(self)
+	# can check if UI is in the SweetUI dock. Runtime safe.
+	var in_editor = SweetUI.is_editor(self)
+	
+	
+	# a function named after a node creates the node and adds it as a child
+	# to the UI's current node, then returns a wrapper that allows for chained calls
+	ui.color_rect().full_rect().color(Color.BLACK).name("BG")
+	
+	# We want a reference to this node, so we can return it with node() or c() for short
+	var marg = ui.margin_container().margin(20).full_rect().node()
+
+	# passing a node through the constuctor adds it as a child to the passed node
+	# chaining commands on newlines within parentheses allows for no backslash/line continuation
+	var vbox = (ui.v_box_container(marg)
+				.name("Content")
+				.full_rect()
+				.node())
+	
+	
+	# rebase will set SweetUI's current node to the passed node. New nodes will be added there.
+	(ui.rebase(ui.h_box_container(vbox).name("H").node()) # rebase to an hbox container added to the vbox
+		.spacer() # rebase returns "ui", which has the spacer func
+		.label().text("This is a title").ui() # create a label, set the text, then return to "ui"
+		.spacer()
+		.to_root()) # resets SweetUI's current node to the original passed in via new()
+	
+	ui.rebase(vbox)
+	
+	# custom types can be wrapped in a generic node that it extends from
+	# you can also create your own via the generator
+	var tab_container = (ui.v_box_container_from(MyTabBarContainer.new())
+		.custom_minimum_size(Vector2(1000, 10))
+		.expand()
+		.node() as MyTabBarContainer)
+	
+	# the Sweets class (const Sw = SweetUI.Sweets) provides standalone wrappers
+	# for where you don't want to add as a child right away
+	tab_container.add_tab(
+		Sw.color_rect()
+		.color(Color.RED if in_editor else Color.BLUE)
+		.node())
+	tab_container.add_tab(Sw.color_rect().color(Color.GREEN).node())
+	
+```
+
+## Install
+
+This plugin uses external dependencies packaged with [Package Exporter](https://github.com/brohd11/godot-package-exporter.git),
+download the latest package from releases, it includes the required dependencies.
+The "require" key in plugin.cfg|addon.cfg lists all dependency repos.
+
+You can also use [gdaddon](https://github.com/brohd11/gdaddon) to manage the installation.
+It is a TUI package/repo manager that can install and update addons for you.
+
+In your project:
+```
+gdaddon install brohd11/godot-sweet-ui/release
+```
+
+## Class Generation
+
+Enable **Sweet UI** in Project Settings → Plugins to create the library files. Default location:
 
 ```text
-scripts/sweet_ui/
+res://scripts/sweet_ui/
     sweet_ui_source.gd
     generated/
         sweet_ui.gd
@@ -13,11 +86,13 @@ scripts/sweet_ui/
         sweets_generated.gd
 ```
 
-Commit this directory, including its `.uid` files. `sweet_ui/generation/targets` in
-Project Settings maps each output directory to the class name it declares, defaulting to
-`{"res://scripts/sweet_ui": "SweetUI"}`. Each target has its own source, so a plugin can
-generate a separate build that wraps its own controls without clashing with the project's
-`SweetUI`:
+This is generated inside of your project and out of the plugin so that it can be commited in your project. The library doesn't rely on the plugin's code at all.
+
+`sweet_ui/generation/targets` in Project Settings maps output directories to an optional class name.
+Default: `{"res://scripts/sweet_ui": "SweetUI"}`
+
+Each one gets unique copies, allowing for different usecases between sets.
+For example, a plugin that declares it's own custom controls:
 
 ```gdscript
 # sweet_ui/generation/targets
@@ -27,129 +102,47 @@ const PluginUI = preload("res://addons/my_plugin/src/ui/generated/sweet_ui.gd")
 var ui = PluginUI.new(self)
 ```
 
-An empty name generates an unnamed build that is used by preloading it. Class names must
-be unique, and target directories cannot be nested inside one another. Move an existing
-directory through Godot before changing its entry; generation rejects a class name that
-already exists at another location. The former `sweet_ui/generation/directory` setting
-migrates to a single `SweetUI` entry.
+An empty name generates an unnamed build that can be used by preloading it.
 
-The source is a complete editable copy of the default prototypes. Enabling the plugin
-creates it only when absent and generates runtime files on first setup or when an
-output is missing. Existing source files are never overwritten by setup or addon updates.
-Changes to source require explicit regeneration. Future default-prototype improvements
-can be adopted manually from the addon's source template.
+The generated `sweet_ui_source.gd` is the blueprint for the generator. Changes made there are reflected in the generated classes.
 
-All runtime code lives under `generated/` and works without the Sweet UI addon. Game
-export presets can exclude `addons/sweet_ui/*` and `scripts/sweet_ui/sweet_ui_source.gd`
-(adjust the latter for a custom directory). Generated wrappers for custom controls
-still need those controls and their dependencies. Sweet UI does not modify export presets.
+## Current Types
 
-Sweet UI provides typed fluent wrappers:
+- Control
+- ColorRect
+- Button
+- Label
+- LineEdit
+- TextEdit
+- TextureRect
+- ProgressBar
+- HBox
+- VBox
+- Grid
+- Margin
+- Panel
+- Scroll
+- Center
+- HSplit
+- VSplit
 
-```gdscript
-var sweets = SweetUI.new(self)
-var rect := sweets.color_rect().expand().full_rect().color(Color.GREEN).node()
-# rect is a ColorRect. Pass a parent to color_rect() to override the default.
 
-var column := sweets.v_box_container().expand().node()
-sweets.label(column).text("Settings").horizontal_alignment(HORIZONTAL_ALIGNMENT_CENTER)
-sweets.button(column).text("Apply").disabled(false).pressed(func(): print("Apply"))
-```
+## Dock
 
-`SweetUI.new(parent)` requires a parent node. `control()` and `color_rect()` create
-and attach one native node, then return a RefCounted wrapper. Their optional parent
-argument overrides the default parent. Attached wrappers use
-`SwColorRect.with_parent(control, parent, ui)` with an existing native control,
-its parent, and the owning `SweetUI` instance. This calls
-`parent.add_child(control)` directly. `wrapper.ui()` returns that same typed owner,
-so chains can resume building controls: `ui.label().text("Title").ui().button()`.
-Callers must supply valid parents; invalid parents surface normal Godot errors.
+The SweetUI dock loads scripts then instances them inside.
 
-Every instance factory also has a typed `_from` companion for attaching an existing
-node, including subclasses of the native type:
+**Note:** The script is instanced fully, unintended logic can be run.
+You can use `SweetUI.is_editor(self)` to check if you are in the editor or not.
 
-```gdscript
-var rect := sweets.color_rect_from(MyColorRect.new()).expand().color(Color.GREEN).node()
-var label := sweets.label_from(Label.new(), column).text("Existing node").c()
-```
+There is a Tree that displays the node tree from the root down. It can show attached scripts, as well as highlight and inspect selected nodes.
+The Tree can be relocated to a separate dock if desired.
 
-These helpers preserve the supplied instance and set the wrapper's `SweetUI` owner.
-The optional parent overrides the current default parent. Supply a valid, unparented
-node; these helpers call `add_child()` and do not automatically reparent.
-`node()` and its shorthand `c()` infer the wrapper's native type (`ColorRect` above).
-Accessing subclass-only members still requires a cast to the subclass.
 
-Use `SweetUI.Sweets` to create controls before attaching them:
+## Custom Generation
 
-```gdscript
-const Sweets = SweetUI.Sweets
-
-var rect := Sweets.color_rect().expand().color(Color.GREEN).node()
-add_child(rect)
-```
-
-Every generated instance factory has a static counterpart with an optional typed node:
-`Sweets.color_rect(existing_rect)`. Omitting the argument or passing `null` creates a
-new, unattached node. Supplying a node wraps that same instance without changing its
-parent. Both APIs return the same typed wrappers and support the same fluent operations.
-Static wrappers return `null` from `ui()`. Attaching a node later does not assign a
-SweetUI owner to its wrapper.
-Callers must attach or free detached nodes; releasing a wrapper does not free its node.
-
-`SwColorRect.new(control)` wraps an existing control without changing its parent.
-Direct three-argument constructor calls must migrate to
-`SwColorRect.with_parent(control, parent, ui)`.
-
-Alongside Control and ColorRect, Sweet UI includes Button, Label, LineEdit, TextEdit,
-TextureRect, ProgressBar, and HBox, VBox, Grid, Margin, Panel, Scroll, Center, HSplit,
-and VSplit containers. Factories follow native snake_case names, including
-`h_box_container()`, `v_box_container()`, and `h_split_container()`.
-
-Enable **Sweet UI** in Project Settings → Plugins. Press **+** in the tab-bar row
-to open an empty tab, then drop a `.gd` Control script onto its header or page.
-Each script gets an interactive preview with the editor's theme. Saved changes
-rebuild the preview within half a second; the **Reload** icon recreates it manually.
-The dock menu in the same row can move or float the panel.
-
-The **Tree** toggle shows the live preview hierarchy on the left. Drag the divider
-to resize it; visibility and width are shared across tabs and saved with the dock.
-The tree follows children added, removed, renamed, or reparented by preview code.
-Select a node to inspect its live instance, or use its script button to open the
-attached script. Inspector edits affect only that instance and reset on reload.
-A selected Control is tinted in the preview. **Highlight Selected** and **Inspect Selected**
-in the options menu toggle the tint and the Inspector hand-off; both are shared across
-tabs and saved with the dock.
-The preview panel also exposes `set_tree_side(SIDE_LEFT)` / `set_tree_side(SIDE_RIGHT)`;
-a placement button will be added later.
-
-Scripts can use their normal lifecycle, including without `@tool`:
-
-```gdscript
-extends VBoxContainer
-
-func _ready() -> void:
-	var label = Label.new()
-	label.text = "Hello from code"
-	add_child(label)
-	if SweetUI.is_editor(self):
-		return
-	# Connect runtime services here.
-```
-
-`SweetUI.is_editor(node)` checks the node and its ancestors for preview metadata.
-The marker is set before tree entry, so it is available in `_enter_tree()` and
-`_ready()`, and to attached children. It is unavailable in `_init()` and always
-returns false outside the editor. Constructors must work without arguments.
-
-Previews are recreated from saved files; instance state is discarded. Only the
-opened script is watched. Changes to dependencies may need Godot's normal script
-reload before using Refresh. Scene files, required constructor arguments, and
-unsaved script buffers are not supported. Runtime errors appear in Godot's debugger.
-
-Edit the project's `sweet_ui_source.gd`, then open
-`addons/sweet_ui/src/generator/sweet_ui_generator.gd` in the script editor and use
-**File → Run**. The shipped `_SweetUIGenerator` EditorScript regenerates every configured
-target. Editor Console can also invoke it, optionally for a single target directory:
+If you edit the source, open `addons/sweet_ui/src/generator/sweet_ui_generator.gd` 
+in the script editor and use **File → Run**. The `_SweetUIGenerator` EditorScript regenerates the
+targets. You can also use [Editor Console](https://github.com/brohd11/godot-editor-console) to run it, optionally for a single target directory:
 
 ```text
 script _SweetUIGenerator call generate
@@ -157,33 +150,36 @@ script _SweetUIGenerator call generate res://addons/my_plugin/src/ui
 ```
 
 The generator discovers top-level `Sw…` classes: `SwColorRect` becomes the native
-type `ColorRect` and factory `color_rect()`. It flattens prototype inheritance and
-specializes fluent return types. `TYPES` is an optional override dictionary; its
+type `ColorRect` with factory func `color_rect()`. It flattens inherited functions,
+so a class extending `SwColorRect`, doesn't need to implement ColorRect or Control functions,
+they are generated into the class.
+
+`TYPES` is an optional override dictionary; its
 entries can supply `node`, `factory`, or both without changing the other default:
 
 ```gdscript
-const RE_EXPORT = false
 const TYPES = {
-	"SwRect": {"node": "ColorRect"}, # Generates rect().
+	"SwRect": {"node": "ColorRect"}, # Generates rect() and rect_from()
 	"SwControl": {"factory": "control_node"},
 }
 ```
 
-Factory-name overrides also name the instance companion: `rectangle` generates
-`rectangle()` and `rectangle_from()`. Names must be unique across both sets of helpers;
-collisions reject generation before any output changes.
+All three runtime scripts are fully generated; do not edit them directly,
+your changes will be lost on the next generation.
 
-All three runtime scripts are fully generated; do not edit them directly.
-`SweetUI.Sweets` exposes static factories, and both factory surfaces preload the same
-wrapper classes. By default, return types use `_Generated.SwColorRect`. Set
-`RE_EXPORT = true` in the project source to expose aliases such as
-`SweetUI.SwColorRect` and `SweetUI.Sweets.SwColorRect`.
+### Custom Example
 
-Generation validates the candidate before replacing outputs, skips unchanged files,
-and preserves existing UIDs. The generator and parser dependencies stay in the addon;
-the editable source and generated runtime files belong to the project.
+Here is a custom class example.
 
-Custom targets use a file-backed GDScript extending Control:
+Note the `#! set ...` comment. You can use this with properties and signals
+to autogenerate a simple setter or signal connector func.
+It can be spread across multiple lines. Inherited tags are included and duplicate names are removed. A handwritten method
+with the same name takes precedence for both setters and signal connections.
+
+Non-property or custom funcs can also be written here, like "select_first()" below.
+
+All wrapper funcs return self, allowing for the chaining commands. This is not added automatically 
+to custom functions, so be sure to remember that if you want to chain.
 
 ```gdscript
 const MyTabContainer = preload("res://scripts/my_tab_container.gd")
@@ -193,60 +189,14 @@ const TYPES = {
 
 class SwMyTabContainer extends SwControl:
 	#! set current_tab, tab_changed
+	#! set tab_hovered
 	func select_first() -> SwMyTabContainer:
 		_control.current_tab = 0
 		return self
 ```
 
-Merge these definitions into the existing source. Custom targets can inherit script
-properties and signals, use native properties and signals, and provide handwritten
-operations. Script preload aliases at source-file scope are carried into generated
-code, including relative preloads resolved from the source directory. Prototype
-`_control` is deliberately untyped; the generated wrapper specializes it to the target.
+Script preload aliases at source-file scope are carried into generated
+code, including relative preloads resolved from the source directory.
 
-`ui.my_tab_container_from(existing).expand().node()` and
-`SweetUI.Sweets.my_tab_container().c()` infer the custom target type, so its members
-remain accessible. Creating factories require a non-abstract target with no required
-constructor arguments. Generation inspects scripts without constructing target nodes.
-Inner-class and C# targets are not supported.
+**Note:** Currently custom classes with constructor args are not supported.
 
-Use class-body tags for fluent property setters and signal connections:
-
-```gdscript
-class SwLabel extends SwControl:
-	#! set text, horizontal_alignment, vertical_alignment
-	pass
-```
-
-Each property produces a method such as `text(value: String) -> SwLabel` that
-assigns the native property and returns the wrapper. Types come from Parser's
-native API lookup, including resources and enums. Signal names instead produce a
-connection method such as `pressed(callable: Callable) -> SwButton`, which calls
-`_control.pressed.connect(callable)` and returns the wrapper.
-
-Split longer lists across repeated tags; properties and signals can be mixed:
-
-```gdscript
-class SwButton extends SwControl:
-	#! set text, icon, disabled
-	#! set toggle_mode, button_pressed, pressed
-	pass
-```
-
-Inherited tags are included and duplicate names are removed. A handwritten method
-with the same name takes precedence for both setters and signal connections.
-
-Only standalone class-body tags are read. Tag-like strings and comments inside
-methods are ignored. Unknown members or non-writable properties reject generation before
-any runtime file is changed.
-
-Prototypes contain operation methods over `_control`; constructors, `with_parent()`, and typed
-`node()` / `c()` / `ui()` accessors are generated. Additional state, prototype constants, static
-methods, and `super` calls are unsupported. Derived methods replace inherited ones.
-
-The test entry point bootstraps missing runtime files before loading its checks.
-Run the package's checks with `test sweet_ui` in Editor Console, or headlessly:
-
-```sh
-godot --headless --path . --script res://addons/sweet_ui/_export_ignore/test/run_headless.gd
-```

@@ -4,6 +4,7 @@ const UName = preload("uid://b8sil7xrxxs20") #! resolve UtilR.Strings.UName
 const Placer = preload("uid://cs6pl78crcr0g") #! resolve UtilR.Nodes.PopupMenus.Placer
 const Options = preload("uid://dxdxq2n3imf4q") #! resolve UtilR.Nodes.PopupMenus.Options
 const TabBarContainer = preload("uid://dhohyyr2xlven") #! resolve UIRuntime.Tabs.TabBarContainer
+const SwUI = preload("uid://b7xssq2oulsuw") #! resolve SweetUI
 
 const PreviewHost = preload("res://addons/sweet_ui/src/editor/preview_host.gd")
 const TreeView = preload("res://addons/sweet_ui/src/editor/tree_view.gd")
@@ -38,7 +39,7 @@ func _init() -> void:
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 func _ready() -> void:
-	var ui = SweetUI.new(self)
+	var ui = SwUI.new(self)
 	
 	popup_placer = ui.add_node(Placer.new())
 	
