@@ -73,7 +73,7 @@ static func _test_runtime() -> bool:
 	_check("expand flags preserve unselected axis", control.node().size_flags_vertical == Control.SIZE_FILL)
 	CountedRect.created = 0
 	node_count = Node.get_orphan_node_ids().size()
-	var direct = Wrappers.SwColorRect.with_parent(CountedRect.new(), other_parent, sweets)
+	var direct = Wrappers.SwColorRect._with_parent(CountedRect.new(), other_parent, sweets)
 	_check("direct construction allocates exactly one node", CountedRect.created == 1 and Node.get_orphan_node_ids().size() == node_count + 1)
 	_check("direct wrapper keeps original instance", direct.node().get_script() == CountedRect)
 	_check("direct constructor keeps supplied owner", direct.ui() == sweets)
@@ -82,7 +82,7 @@ static func _test_runtime() -> bool:
 	for method in wrapper_script.get_script_method_list():
 		if method.name == &"_init":
 			_check("detached constructor requires one argument", method.args.size() == 1 and method.default_args.is_empty())
-		if method.name == &"with_parent":
+		if method.name == &"_with_parent":
 			_check("attached factory requires three arguments", method.args.size() == 3 and method.default_args.is_empty())
 			_check("attached factory types its owner", method.args[2].class_name == "SweetUI")
 	var inferred_type = ""
@@ -410,7 +410,8 @@ static func _test_source_options() -> bool:
 		var compiled: GDScript = result.validation
 		_check("alias presence matches reexport setting", compiled.get_script_constant_map().has("SwColorRect") == enabled)
 		_write(target, with_inference)
-		var written = Generator._generate_file(target, prototype, classes_path, sweets_path)
+		# Loaded below: wrappers preload this owner, so it can't reuse the registered SweetUI name.
+		var written = Generator._generate_file(target, prototype, classes_path, sweets_path, "", "SweetUIOptionsCheck")
 		_check("reexport outputs written", written.error == OK)
 		if written.error != OK:
 			continue
@@ -439,7 +440,7 @@ static func _test_source_options() -> bool:
 		_check("supplied node chains run in both reexport modes", ui.from_inferred == ui.static_from_inferred and ui.from_inferred.get_parent() == ui.probe_parent and ui.from_inferred.color == Color.BLUE)
 		if enabled:
 			var wrapper_type = compiled.get_script_constant_map().SwColorRect
-			var wrapper = wrapper_type.with_parent(ColorRect.new(), parent, ui)
+			var wrapper = wrapper_type._with_parent(ColorRect.new(), parent, ui)
 			_check("reexported constructor keeps parent and owner", wrapper.node().get_parent() == parent and wrapper.ui() == ui)
 			_check("static alias exposes shared wrapper type", static_constants.SwColorRect == static_constants._Generated.get_script_constant_map().SwColorRect)
 			var detached = static_constants.SwColorRect.new(ColorRect.new())
@@ -538,7 +539,7 @@ static func _test_setter_tags() -> bool:
 	var saved_target = FileAccess.get_file_as_string(target)
 	var saved_classes = FileAccess.get_file_as_string(classes_path)
 	var saved_sweets = FileAccess.get_file_as_string(sweets_path)
-	for invalid_tag in ["missing_property", "missing_signal", "color,", "color; text", "ui", "with_parent"]:
+	for invalid_tag in ["missing_property", "missing_signal", "color,", "color; text", "ui", "_with_parent"]:
 		_write(prototype, Cases.source(Cases.tag_body("", "", invalid_tag)))
 		result = Generator._generate_file(target, prototype, classes_path, sweets_path)
 		_check("invalid setter tag rejected: " + invalid_tag, result.error != OK)
@@ -547,7 +548,7 @@ static func _test_setter_tags() -> bool:
 	var conflict = Generator._generate_file(target, prototype, classes_path, sweets_path)
 	_check("handwritten ui accessor rejected", conflict.error != OK)
 	_check("conflicting accessor preserves outputs", FileAccess.get_file_as_string(target) == saved_target and FileAccess.get_file_as_string(classes_path) == saved_classes and FileAccess.get_file_as_string(sweets_path) == saved_sweets)
-	_write(prototype, Cases.source(Cases.tag_body(Cases.UI_CONFLICT.replace("func ui()", "func with_parent()"))))
+	_write(prototype, Cases.source(Cases.tag_body(Cases.UI_CONFLICT.replace("func ui()", "func _with_parent()"))))
 	conflict = Generator._generate_file(target, prototype, classes_path, sweets_path)
 	_check("handwritten attached factory rejected", conflict.error != OK)
 	_check("conflicting factory preserves outputs", FileAccess.get_file_as_string(target) == saved_target and FileAccess.get_file_as_string(classes_path) == saved_classes and FileAccess.get_file_as_string(sweets_path) == saved_sweets)

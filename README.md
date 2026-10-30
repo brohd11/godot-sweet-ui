@@ -108,6 +108,8 @@ An empty name generates an unnamed build that can be used by preloading it.
 
 The generated `sweet_ui_source.gd` is the blueprint for the generator. Changes made there are reflected in the generated classes.
 
+Generation is done by [Node Wrapper](https://github.com/brohd11/godot-node-wrapper), which can also generate wrappers for Nodes, Resources and RefCounted types in your own plugins.
+
 ## Current Types
 
 - Control

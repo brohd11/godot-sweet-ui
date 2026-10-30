@@ -44,7 +44,7 @@ func add_node(node:Node, parent:Node=null) -> Node:
 func add_child(node:Node, parent:Node=null) -> _Generated.SwControl:
 	if not is_instance_valid(parent):
 		parent = _node
-	return _Generated.SwControl.with_parent(node, parent, self)
+	return _Generated.SwControl._with_parent(node, parent, self)
 
 func spacer(parent: BoxContainer = null, begin:=false) -> SweetUI:
 	_get_parent(parent).add_spacer(begin).name = "Spacer"

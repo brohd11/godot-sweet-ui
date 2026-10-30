@@ -83,7 +83,9 @@ static func _test_names(directory: String) -> bool:
 		_failures.append(result.message)
 		return false
 	var outputs = ["generated/sweet_ui.gd", "generated/sweets_generated.gd", "generated/sweets.gd"].map(func(file): return FileAccess.get_file_as_string(named.path_join(file)))
-	_check("named target renames every owner reference", outputs[0].begins_with("class_name SweetUIEditor\n") and outputs[1].contains("var _ui:SweetUIEditor") and outputs.all(func(text): return bare_name.search(text) == null))
+	_check("named target renames every owner reference", outputs[0].begins_with("class_name SweetUIEditor\n") and outputs.all(func(text): return bare_name.search(text) == null))
+	# Wrappers preload the owner, so they compile before the editor registers SweetUIEditor.
+	_check("named wrappers preload their owner", outputs[1].contains('const _SweetUI = preload("sweet_ui.gd")') and outputs[1].contains("var _ui:_SweetUI") and not outputs[1].contains("SweetUIEditor"))
 	result = Generator._setup_directory(named, false, "")
 	_check("renamed target regenerates on setup", result.error == OK and result.changed)
 	var unnamed = named
