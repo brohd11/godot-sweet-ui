@@ -6,8 +6,8 @@ const Options = preload("uid://dxdxq2n3imf4q") #! resolve UtilR.Nodes.PopupMenus
 const TabBarContainer = preload("uid://dhohyyr2xlven") #! resolve UIRuntime.Tabs.TabBarContainer
 const SwUI = preload("uid://b7xssq2oulsuw") #! resolve SweetUI
 
-const PreviewHost = preload("res://addons/sweet_ui/src/editor/preview_host.gd")
-const TreeView = preload("res://addons/sweet_ui/src/editor/tree_view.gd")
+const PreviewHost = preload("uid://bd2dhwch6o144") #! resolve ResourceView.ControlViewer
+const TreeView = PreviewHost.ControlTreeView
 
 const TREE_MIN_WIDTH = 140
 
@@ -60,7 +60,8 @@ func _ready() -> void:
 	tabs.add_child(tree_split)
 	tree_view = TreeView.new()
 	tree_view.custom_minimum_size.x = TREE_MIN_WIDTH
-	tree_view.drop_target = self
+	tree_view.can_drop_callable = _can_drop_script
+	tree_view.drop_callable = _drop_script
 	tree_split.add_child(tree_view)
 	var content: Control = tabs.get_tab_parent()
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -93,6 +94,7 @@ func new_tab() -> PreviewHost:
 	if _stopped:
 		return null
 	var host = PreviewHost.new()
+	host.placeholder_text = "Drop a Control script onto this tab to preview it."
 	host.set_highlight_enabled(_highlight_selected)
 	host.set_inspect_enabled(_inspect_selected)
 	host.set_interact_enabled(_interact_preview)
@@ -105,7 +107,7 @@ func new_tab() -> PreviewHost:
 	return host
 
 func _on_options_pressed():
-	var current_script_path = tabs.get_current_tab_control().script_path
+	var current_script_path = tabs.get_current_tab_control().source_path
 	var options = Options.new()
 	if not (tabs.get_tab_count() == 0 or current_script_path.is_empty()):
 		options.add_option("Reload", _refresh_selected, ["Reload"])
@@ -127,17 +129,17 @@ func open_script(path: String, tab_index := -1) -> void:
 	if not path.begins_with("res://") or path.get_extension().to_lower() != "gd":
 		return
 	for i in tabs.get_tab_count():
-		if tabs.get_tab_control(i).script_path == path:
+		if tabs.get_tab_control(i).source_path == path:
 			tabs.set_current_tab(i)
 			return
 	var host: PreviewHost
 	if tab_index >= 0 and tab_index < tabs.get_tab_count():
 		host = tabs.get_tab_control(tab_index)
-	elif tabs.get_tab_count() > 0 and tabs.get_current_tab_control().script_path.is_empty():
+	elif tabs.get_tab_count() > 0 and tabs.get_current_tab_control().source_path.is_empty():
 		host = tabs.get_current_tab_control()
 	else:
 		host = new_tab()
-	host.script_path = path
+	host.source_path = path
 	var index = host.get_index()
 	tabs.get_tab_bar().set_tab_title(index, path.get_file())
 	tabs.get_tab_bar().set_tab_tooltip(index, path)
@@ -165,7 +167,7 @@ func close_tab(index: int) -> void:
 func get_dock_data() -> Dictionary:
 	var paths: Array[String] = []
 	for i in tabs.get_tab_count():
-		paths.append(tabs.get_tab_control(i).script_path)
+		paths.append(tabs.get_tab_control(i).source_path)
 	return {"scripts": paths, "selected_tab": tabs.get_tab_bar().current_tab,
 		"tree_visible": _tree_visible, "tree_side": _tree_side, "tree_width": _tree_width,
 		"highlight_selected": _highlight_selected, "inspect_selected": _inspect_selected,
@@ -292,7 +294,7 @@ func _poll_saved_files() -> void:
 func _refresh_selected() -> void:
 	if tabs.get_tab_count() > 0:
 		var host = tabs.get_current_tab_control()
-		if not host.script_path.is_empty():
+		if not host.source_path.is_empty():
 			host.queue_rebuild()
 
 

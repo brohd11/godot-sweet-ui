@@ -6,7 +6,7 @@ extends "res://addons/_lib/singleton/src/singleton_ref_count.gd" #! ext Singleto
 const NodeRefs = preload("res://addons/_lib/editor_node_ref/src/editor_node_ref.gd")
 
 const PreviewPanel = preload("res://addons/sweet_ui/src/editor/preview_panel.gd")
-const PreviewHost = preload("res://addons/sweet_ui/src/editor/preview_host.gd")
+const PreviewHost = preload("uid://bd2dhwch6o144") #! resolve ResourceView.ControlViewer
 const TreeDock = preload("res://addons/sweet_ui/src/editor/tree_dock.gd")
 
 

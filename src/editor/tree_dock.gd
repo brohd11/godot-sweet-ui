@@ -2,8 +2,8 @@ extends VBoxContainer
 ## The Sweet UI node tree as its own dock, following the tab the hub marks active.
 ## Created on demand from the preview panel's options; restored by DockManager.
 
-const TreeView = preload("res://addons/sweet_ui/src/editor/tree_view.gd")
-const PreviewHost = preload("res://addons/sweet_ui/src/editor/preview_host.gd")
+const PreviewHost = preload("uid://bd2dhwch6o144") #! resolve ResourceView.ControlViewer
+const TreeView = PreviewHost.ControlTreeView
 
 const DOCK_NAME = "SweetUITree"
 
@@ -56,8 +56,10 @@ func _notification(what: int) -> void:
 
 
 func _on_active_host_changed(host: PreviewHost) -> void:
-	tree_view.drop_target = _hub.active_panel
+	var panel = _hub.active_panel
+	tree_view.can_drop_callable = panel._can_drop_script if is_instance_valid(panel) else Callable()
+	tree_view.drop_callable = panel._drop_script if is_instance_valid(panel) else Callable()
 	tree_view.set_host(host)
 	host = tree_view.get_host()
-	title.text = "" if host == null else host.script_path.get_file()
-	title.tooltip_text = "" if host == null else host.script_path
+	title.text = "" if host == null else host.source_path.get_file()
+	title.tooltip_text = "" if host == null else host.source_path
