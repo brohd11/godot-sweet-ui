@@ -1,4 +1,4 @@
-# Builds and publishes this package on version tags with PackageExporter. The tag must match
+# Builds and publishes this package on version tags with gdpackage. The tag must match
 # version= in the package cfg; deps are fetched by tag, so they need pushing first.
 # A manual run (Actions tab) builds the tag matching version= without publishing it.
 name: release
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 jobs:
   release:
-    uses: brohd11/godot-package-exporter/.github/workflows/package-release.yml@main
+    uses: brohd11/godot-gdpackage/.github/workflows/package-release.yml@main
     with:
       # Builds and verifies on this Godot; it must run everything the package and its deps use.
       godot-version: "4.6.3-stable"

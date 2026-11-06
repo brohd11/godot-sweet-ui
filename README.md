@@ -63,9 +63,9 @@ func _build_ui():
 
 ## Install
 
-This plugin uses external dependencies packaged with [Package Exporter](https://github.com/brohd11/godot-package-exporter.git),
+This plugin uses external dependencies packaged with [GDPackage](https://github.com/brohd11/godot-gdpackage.git),
 download the latest package from releases, it includes the required dependencies.
-The "require" key in plugin.cfg|addon.cfg lists all dependency repos.
+The "require" key in plugin.cfg|package.cfg lists all dependency repos.
 
 You can also use [gdaddon](https://github.com/brohd11/gdaddon) to manage the installation.
 It is a TUI package/repo manager that can install and update addons for you.
