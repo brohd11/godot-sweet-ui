@@ -68,7 +68,7 @@ func _create_docks() -> void:
 	panel = PreviewPanel.new()
 	# Freeable docks reload on startup, which is how an open tree dock persists.
 	_docks = DockManager.InstanceManager.new(initial_plugin, true, true)
-	var dock = _docks.new_persistent_dock_manager(panel, DockManager.Slot.BOTTOM_PANEL)
+	var dock = _docks.new_persistent_dock_manager(panel, DockManager.DOCK_SLOT_BOTTOM)
 	dock.allow_scene_reload = true
 	panel.layout_changed.connect(dock.save_layout_data)
 
@@ -87,7 +87,7 @@ func has_tree_dock() -> bool:
 func open_tree_dock() -> void:
 	if _stopped or _docks == null or has_tree_dock():
 		return
-	var dock = _docks.new_freeable_dock_manager(TreeDock.new(), DockManager.Slot.DOCK_SLOT_LEFT_UR)
+	var dock = _docks.new_freeable_dock_manager(TreeDock.new(), EditorPlugin.DOCK_SLOT_LEFT_UR)
 	if dock != null:
 		dock.allow_scene_reload = true
 
