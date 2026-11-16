@@ -12,6 +12,7 @@ const TreeDock = preload("res://addons/sweet_ui/src/editor/tree_dock.gd")
 
 #region SingletonAPI
 
+#! gdp-strip-cast PE_STRIP_CAST_SCRIPT
 const PE_STRIP_CAST_SCRIPT = preload("res://addons/sweet_ui/src/sweet_ui_editor.gd")
 
 static func get_singleton_name() -> String:
