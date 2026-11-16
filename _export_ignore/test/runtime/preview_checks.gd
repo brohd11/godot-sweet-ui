@@ -2,8 +2,8 @@ extends RefCounted
 
 const Context = preload("res://scripts/sweet_ui/generated/sweet_ui.gd")
 const PreviewPanel = preload("res://addons/sweet_ui/src/editor/preview_panel.gd")
-const Host = preload("res://addons/sweet_ui/src/editor/preview_host.gd")
-const TreeView = preload("res://addons/sweet_ui/src/editor/tree_view.gd")
+const Host = PreviewPanel.PreviewHost
+const TreeView = PreviewPanel.TreeView
 const BASIC = "res://addons/sweet_ui/_export_ignore/test/runtime/fixtures/basic_control.gd"
 const REQUIRED = "res://addons/sweet_ui/_export_ignore/test/runtime/fixtures/required_argument.gd"
 
@@ -88,10 +88,10 @@ static func _test_tabs_and_lifecycle() -> void:
 	panel.add_button.pressed.emit()
 	var empty_host = panel.tabs.get_current_tab_control()
 	await tree.process_frame
-	_check("Add opens a selected empty tab", panel.tabs.get_tab_count() == 2 and empty_host.script_path.is_empty())
+	_check("Add opens a selected empty tab", panel.tabs.get_tab_count() == 2 and empty_host.source_path.is_empty())
 	_check("empty preview stays idle", empty_host.preview == null and not empty_host.status.text.contains("not found"))
 	panel._drop_script(Vector2.ZERO, {"type": "files", "files": [BASIC]}, empty_host)
-	_check("duplicate drop selects original tab", panel.tabs.get_tab_bar().current_tab == 0 and empty_host.script_path.is_empty())
+	_check("duplicate drop selects original tab", panel.tabs.get_tab_bar().current_tab == 0 and empty_host.source_path.is_empty())
 	panel.tabs.set_current_tab(1)
 	var empty_state = panel.get_dock_data()
 	panel.set_dock_data(empty_state)
@@ -101,7 +101,7 @@ static func _test_tabs_and_lifecycle() -> void:
 	var drop_data = {"type": "files", "files": [REQUIRED]}
 	_check("empty tab header accepts script drops", panel._can_drop_on_bar(tab_position, drop_data))
 	panel._drop_on_bar(tab_position, drop_data)
-	_check("header drop fills its own tab", panel.tabs.get_tab_control(1).script_path == REQUIRED)
+	_check("header drop fills its own tab", panel.tabs.get_tab_control(1).source_path == REQUIRED)
 	panel.open_script(REQUIRED)
 	await tree.process_frame
 	var required_host = panel.tabs.get_current_tab_control()
@@ -125,7 +125,7 @@ static func _test_tabs_and_lifecycle() -> void:
 	panel.close_tab(0)
 	await tree.process_frame
 	_check("closing cancels pending rebuild", not is_instance_valid(pending))
-	_check("closing keeps remaining tab metadata aligned", panel.tabs.get_tab_control(0).script_path == BASIC and panel.get_dock_data().scripts == [BASIC])
+	_check("closing keeps remaining tab metadata aligned", panel.tabs.get_tab_control(0).source_path == BASIC and panel.get_dock_data().scripts == [BASIC])
 	var remaining = panel.tabs.get_tab_control(0)
 	remaining.queue_rebuild()
 	panel.clean_up()
@@ -136,7 +136,7 @@ static func _test_tabs_and_lifecycle() -> void:
 	var empty_panel = PreviewPanel.new()
 	_viewport.add_child(empty_panel)
 	empty_panel.close_tab(0)
-	_check("closing last tab leaves a fresh empty tab", empty_panel.tabs.get_tab_count() == 1 and empty_panel.tabs.get_current_tab_control().script_path.is_empty())
+	_check("closing last tab leaves a fresh empty tab", empty_panel.tabs.get_tab_count() == 1 and empty_panel.tabs.get_current_tab_control().source_path.is_empty())
 	empty_panel.clean_up()
 	empty_panel.free()
 
@@ -327,7 +327,7 @@ static func _test_saved_changes() -> void:
 		temp_dir = "/tmp"
 	var path = temp_dir.path_join("sweet_ui_preview_%d.gd" % Time.get_ticks_usec())
 	var host = Host.new()
-	host.script_path = path
+	host.source_path = path
 	_write(path, "extends Label\nfunc _ready():\n\ttext = \"before\"\n")
 	_viewport.add_child(host)
 	var view = TreeView.new()
