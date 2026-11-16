@@ -36,19 +36,8 @@ exports:
     source: "res://addons/sweet_ui"
     export_name: "sweet-ui{{version=res://addons/sweet_ui}}"
     export_folder: addons/sweet_ui
-    exclude:
-      directories:
-        - "res://addons/sweet_ui/_export_ignore"
-      file_extensions: []
-      files: []
     other_transfers:
       - from: res://addons/sweet_ui/src/generator/templates/
         to: src/generator/templates/
         recursive: true
         ignore_deps: true
-    parser_overide_settings:
-      parse_cs: {}
-      parse_gd: {}
-      parse_tscn: {}
-      parse_tres: {}
-    remote_dir: "res://addons/sweet_ui/src/remote"
